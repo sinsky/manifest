@@ -1,5 +1,7 @@
 import { betterAuth } from 'better-auth';
 import type { Auth } from 'better-auth';
+import { genericOAuth } from 'better-auth/plugins/generic-oauth';
+import type { GenericOAuthConfig } from 'better-auth/plugins/generic-oauth';
 import { stripe as stripePlugin } from '@better-auth/stripe';
 import { render } from '@react-email/render';
 import { VerifyEmailEmail } from '../notifications/emails/verify-email';
@@ -67,11 +69,83 @@ function buildTrustedOrigins(): string[] {
   return origins;
 }
 
+function buildOidcProviderConfig(): GenericOAuthConfig | null {
+  const clientId = process.env['OIDC_CLIENT_ID'];
+  const clientSecret = process.env['OIDC_CLIENT_SECRET'];
+
+  if (!clientId || !clientSecret) {
+    return null;
+  }
+
+  const providerId = process.env['OIDC_PROVIDER_ID'] ?? 'oidc';
+  const issuer = process.env['OIDC_ISSUER'];
+  const discoveryUrl = process.env['OIDC_DISCOVERY_URL'];
+  const authorizationUrl = process.env['OIDC_AUTHORIZATION_URL'];
+  const tokenUrl = process.env['OIDC_TOKEN_URL'];
+  const userInfoUrl = process.env['OIDC_USERINFO_URL'];
+
+  if (!issuer && !discoveryUrl && !authorizationUrl && !tokenUrl) {
+    return null;
+  }
+
+  const scopes = process.env['OIDC_SCOPES']
+    ?.split(',')
+    .map((scope) => scope.trim())
+    .filter(Boolean) ?? ['openid', 'profile', 'email'];
+
+  const pkce = process.env['OIDC_PKCE'] !== 'false';
+  const disableSignUp = process.env['OIDC_DISABLE_SIGN_UP'] === 'true';
+  const overrideUserInfo = process.env['OIDC_OVERRIDE_USER_INFO'] === 'true';
+
+  const config: GenericOAuthConfig = {
+    providerId,
+    clientId,
+    clientSecret,
+    scopes,
+    pkce,
+    disableSignUp,
+    overrideUserInfo,
+  };
+
+  if (discoveryUrl) {
+    config.discoveryUrl = discoveryUrl;
+  } else if (issuer) {
+    const normalizedIssuer = issuer.endsWith('/') ? issuer.slice(0, -1) : issuer;
+    config.discoveryUrl = `${normalizedIssuer}/.well-known/openid-configuration`;
+  }
+
+  if (authorizationUrl) {
+    config.authorizationUrl = authorizationUrl;
+  }
+  if (tokenUrl) {
+    config.tokenUrl = tokenUrl;
+  }
+  if (userInfoUrl) {
+    config.userInfoUrl = userInfoUrl;
+  }
+
+  return config;
+}
+
+const oidcProviderConfig = buildOidcProviderConfig();
+
+function buildGenericOAuthPlugin() {
+  if (!oidcProviderConfig) return null;
+  return genericOAuth({ config: [oidcProviderConfig] });
+}
+
 function buildPlugins() {
-  if (!isBillingEnabled()) return [];
+  const plugins = [];
+  const genericOAuthPlugin = buildGenericOAuthPlugin();
+  if (genericOAuthPlugin) {
+    plugins.push(genericOAuthPlugin);
+  }
+
+  if (!isBillingEnabled()) return plugins;
   const plans = [{ name: 'pro', priceId: process.env['STRIPE_PRO_PRICE_ID']! }];
   const priceToPlan = new Map(plans.map((plan) => [plan.priceId, plan.name]));
   return [
+    ...plugins,
     stripePlugin({
       stripeClient: getStripeClient(),
       stripeWebhookSecret: process.env['STRIPE_WEBHOOK_SECRET']!,
@@ -110,7 +184,9 @@ export const auth = betterAuth({
   account: {
     accountLinking: {
       enabled: true,
-      trustedProviders: ['google', 'github', 'discord'],
+      trustedProviders: oidcProviderConfig
+        ? ['google', 'github', 'discord', oidcProviderConfig.providerId]
+        : ['google', 'github', 'discord'],
     },
   },
   emailAndPassword: {

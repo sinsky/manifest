@@ -1,0 +1,100 @@
+# Manifest + Postgres local stack.
+#
+# Usage:
+#   1. Copy `.env.example` → `.env` and fill in the secrets, or let the
+#      placeholder `${VAR:?...}` directives fail-fast so the stack refuses
+#      to start with defaults that mirror upstream's `myuser/mypassword`
+#      example (those are rejected by the Dockerfile's prod-deps stage and
+#      are a known footgun for self-hosters).
+#   2. `docker compose up -d`
+#   3. Open http://localhost:2099
+#
+# Single-instance self-hosted run: boot-time migrations are ON
+# (RUN_MIGRATIONS_ON_BOOT defaults to true), so the first `up` applies the
+# schema. Do NOT scale `manifest` to >1 replica without also setting
+# RUN_MIGRATIONS_ON_BOOT=false and running `migration:run:prod` in a
+# pre-deploy step — concurrent migrators deadlock on the advisory lock.
+#
+# Image: built locally from ./docker/Dockerfile (which bakes the version
+# from packages/manifest/package.json — here 6.16.0-sinsky). Replace
+# `build: .` with `image: docker.io/manifestdotbuild/manifest:6` to use the
+# upstream official image instead.
+
+name: mnfst
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-manifest}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-manifest}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-manifest} -d ${POSTGRES_DB:-manifest}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # Dev-only: expose 5432 on the host for psql / GUIs. Comment out for
+    # production-ish deploys.
+    ports:
+      - "127.0.0.1:5433:5432"
+
+  manifest:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # --- Required (boot will fail without these) ---
+      DATABASE_URL: postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-manifest}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env (>= 32 chars)}
+      MANIFEST_ENCRYPTION_KEY: ${MANIFEST_ENCRYPTION_KEY:?set MANIFEST_ENCRYPTION_KEY in .env (>= 32 chars)}
+      # Public URL of the dashboard. http://localhost:2099 for local; set to
+      # https://<your-domain> when behind a TLS-terminating reverse proxy —
+      # HSTS only turns on when this starts with https://.
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:2099}
+      MANIFEST_MODE: selfhosted
+      NODE_ENV: production
+
+      # --- Networking ---
+      PORT: "2099"
+      BIND_ADDRESS: 0.0.0.0
+
+      # --- Self-host mode flags ---
+      # Don't seed the curated Manifest error-page CMS into your DB.
+      SEED_DATA: "false"
+      # Telemetry to mnfst is off for personal/fork deployments.
+      MANIFEST_TELEMETRY_DISABLED: "1"
+
+      # --- DB / pool tuning (defaults mirror deploy/easypanel/template) ---
+      DB_POOL_MAX: "10"
+      AUTH_DB_POOL_MAX: "5"
+      # Single-instance self-host: app boots with migrationsRun=true, so the
+      # schema is applied on first boot. Leave unset. Set to "false" only if
+      # you scale `manifest` beyond one replica (see header comment).
+      # RUN_MIGRATIONS_ON_BOOT: "false"
+      # Optional direct (non-pooled) URL the standalone backfill worker reads.
+      # Defaults to DATABASE_URL when unset, which is fine here — no PgBouncer.
+      # MIGRATION_DATABASE_URL: postgresql://...
+
+    ports:
+      - "2099:2099"
+    # Distroless base has no shell — use the exec-form healthcheck already
+    # baked into the image. Keep this in sync with the image's PORT default.
+    healthcheck:
+      test: ["CMD", "/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:2099/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+
+volumes:
+  pgdata:
+    driver: local
