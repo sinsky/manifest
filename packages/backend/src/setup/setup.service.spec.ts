@@ -180,6 +180,13 @@ describe('SetupService', () => {
       'GITHUB_CLIENT_SECRET',
       'DISCORD_CLIENT_ID',
       'DISCORD_CLIENT_SECRET',
+      'OIDC_CLIENT_ID',
+      'OIDC_CLIENT_SECRET',
+      'OIDC_PROVIDER_ID',
+      'OIDC_ISSUER',
+      'OIDC_DISCOVERY_URL',
+      'OIDC_AUTHORIZATION_URL',
+      'OIDC_TOKEN_URL',
     ];
 
     let savedEnv: Record<string, string | undefined>;
@@ -209,9 +216,9 @@ describe('SetupService', () => {
       expect(service.getEnabledSocialProviders()).toEqual(['google']);
     });
 
-    it('returns all three when all providers are configured', () => {
+    it('returns all configured providers including OIDC', () => {
       for (const k of envKeys) process.env[k] = 'val';
-      expect(service.getEnabledSocialProviders()).toEqual(['google', 'github', 'discord']);
+      expect(service.getEnabledSocialProviders()).toEqual(['google', 'github', 'discord', 'val']);
     });
 
     it('omits providers with only CLIENT_ID set (no secret)', () => {
@@ -219,6 +226,34 @@ describe('SetupService', () => {
       process.env['GITHUB_CLIENT_ID'] = 'id';
       process.env['GITHUB_CLIENT_SECRET'] = 'secret';
       expect(service.getEnabledSocialProviders()).toEqual(['github']);
+    });
+
+    it('returns oidc when OIDC is fully configured via issuer', () => {
+      process.env['OIDC_CLIENT_ID'] = 'id';
+      process.env['OIDC_CLIENT_SECRET'] = 'secret';
+      process.env['OIDC_ISSUER'] = 'https://auth.example.com';
+      expect(service.getEnabledSocialProviders()).toEqual(['oidc']);
+    });
+
+    it('returns custom provider id when OIDC_PROVIDER_ID is set', () => {
+      process.env['OIDC_CLIENT_ID'] = 'id';
+      process.env['OIDC_CLIENT_SECRET'] = 'secret';
+      process.env['OIDC_DISCOVERY_URL'] =
+        'https://auth.example.com/.well-known/openid-configuration';
+      process.env['OIDC_PROVIDER_ID'] = 'keycloak';
+      expect(service.getEnabledSocialProviders()).toEqual(['keycloak']);
+    });
+
+    it('omits OIDC when only client id and secret are set', () => {
+      process.env['OIDC_CLIENT_ID'] = 'id';
+      process.env['OIDC_CLIENT_SECRET'] = 'secret';
+      expect(service.getEnabledSocialProviders()).toEqual([]);
+    });
+
+    it('omits OIDC when only client id and issuer are set', () => {
+      process.env['OIDC_CLIENT_ID'] = 'id';
+      process.env['OIDC_ISSUER'] = 'https://auth.example.com';
+      expect(service.getEnabledSocialProviders()).toEqual([]);
     });
   });
 
