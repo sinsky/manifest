@@ -133,6 +133,7 @@ describe('ProxyController streaming abort', () => {
       { report: jest.fn() } as never,
       { getCapabilities: jest.fn().mockResolvedValue(null) } as never,
       { lookupModel: jest.fn().mockReturnValue(null) } as never,
+      { list: jest.fn().mockResolvedValue([]) } as never,
     );
   });
 

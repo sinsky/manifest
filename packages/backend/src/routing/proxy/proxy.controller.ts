@@ -26,6 +26,7 @@ import { ThinkingBlockCache } from './thinking-block-cache';
 import { ReasoningContentCache } from './reasoning-content-cache';
 import { ModelDiscoveryService } from '../../model-discovery/model-discovery.service';
 import { ModelsDevSyncService } from '../../database/models-dev-sync.service';
+import { HeaderTierService } from '../header-tiers/header-tier.service';
 import { ProviderParamSpecService } from '../routing-core/provider-param-spec.service';
 import { resolveModelCapabilityMetadata } from '../../model-discovery/model-capabilities';
 import { classifyCaller } from './caller-classifier';
@@ -130,6 +131,7 @@ export class ProxyController {
     private readonly observationReporter: ObservationReporter,
     private readonly providerParamSpecs: ProviderParamSpecService,
     private readonly modelsDevSync: ModelsDevSyncService,
+    private readonly headerTierService: HeaderTierService,
   ) {}
 
   @Get('models')
@@ -155,6 +157,31 @@ export class ProxyController {
       },
     ];
     const seen = new Set(data.map((model) => model.id));
+
+    // Header Tier names are advertised as model ids so OpenAI-compatible
+    // agents can pick a UI-configured tier the same way they pick `auto` or
+    // a discovered model. They advertise the operator's intent (a tier), not
+    // a concrete upstream model, so they carry no capability or cost metadata
+    // — like `auto`. Keeping them ahead of discovered models mirrors the
+    // dashboard's tier-first presentation and lets a tier name win over a
+    // bare-model-name collision in `routeForOpenAiModelId`.
+    const headerTiers = await this.headerTierService
+      .list(req.ingestionContext.agentId)
+      .catch((e) => {
+        this.logger.warn(`Failed to load header tiers for /v1/models: ${e}`);
+        return [];
+      });
+    for (const tier of headerTiers) {
+      if (!tier.enabled) continue;
+      if (seen.has(tier.name)) continue;
+      seen.add(tier.name);
+      data.push({
+        id: tier.name,
+        object: 'model',
+        created: MODEL_CREATED_UNKNOWN,
+        owned_by: 'manifest',
+      });
+    }
 
     for (const model of models) {
       const id = openAiModelId(model);
