@@ -9,10 +9,6 @@ jest.mock('better-auth', () => ({ betterAuth: mockBetterAuth }));
 jest.mock('pg', () => ({ Pool: jest.fn() }));
 const mockStripePlugin = jest.fn().mockReturnValue({ id: 'stripe' });
 jest.mock('@better-auth/stripe', () => ({ stripe: mockStripePlugin }));
-const mockGenericOAuth = jest.fn().mockReturnValue({ id: 'generic-oauth' });
-jest.mock('better-auth/plugins/generic-oauth', () => ({
-  genericOAuth: mockGenericOAuth,
-}));
 jest.mock('@react-email/render', () => ({
   render: jest
     .fn()
@@ -42,7 +38,6 @@ describe('auth.instance', () => {
   beforeEach(() => {
     jest.resetModules();
     mockBetterAuth.mockClear();
-    mockGenericOAuth.mockClear();
     process.env = {
       ...originalEnv,
       NODE_ENV: 'test',
@@ -236,177 +231,6 @@ describe('auth.instance', () => {
 
       const config = mockBetterAuth.mock.calls[0][0];
       expect(config.socialProviders.discord.enabled).toBe(false);
-    });
-  });
-
-  describe('generic OIDC provider', () => {
-    beforeEach(() => {
-      delete process.env['OIDC_CLIENT_ID'];
-      delete process.env['OIDC_CLIENT_SECRET'];
-      delete process.env['OIDC_ISSUER'];
-      delete process.env['OIDC_DISCOVERY_URL'];
-      delete process.env['OIDC_AUTHORIZATION_URL'];
-      delete process.env['OIDC_TOKEN_URL'];
-      delete process.env['OIDC_USERINFO_URL'];
-      delete process.env['OIDC_SCOPES'];
-      delete process.env['OIDC_PKCE'];
-      delete process.env['OIDC_DISABLE_SIGN_UP'];
-      delete process.env['OIDC_OVERRIDE_USER_INFO'];
-      delete process.env['OIDC_PROVIDER_ID'];
-    });
-
-    it('does not register the generic-oauth plugin when OIDC is not configured', () => {
-      loadModule();
-
-      const config = mockBetterAuth.mock.calls[0][0];
-      expect(config.plugins).toEqual([]);
-      expect(mockGenericOAuth).not.toHaveBeenCalled();
-    });
-
-    it('registers the generic-oauth plugin with discovery URL from issuer', () => {
-      process.env['OIDC_CLIENT_ID'] = 'oidc-id';
-      process.env['OIDC_CLIENT_SECRET'] = 'oidc-secret';
-      process.env['OIDC_ISSUER'] = 'https://auth.example.com';
-      loadModule();
-
-      const config = mockBetterAuth.mock.calls[0][0];
-      expect(config.plugins).toEqual([{ id: 'generic-oauth' }]);
-      expect(mockGenericOAuth).toHaveBeenCalledTimes(1);
-      const pluginConfig = mockGenericOAuth.mock.calls[0][0];
-      expect(pluginConfig.config[0]).toMatchObject({
-        providerId: 'oidc',
-        clientId: 'oidc-id',
-        clientSecret: 'oidc-secret',
-        discoveryUrl: 'https://auth.example.com/.well-known/openid-configuration',
-        scopes: ['openid', 'profile', 'email'],
-        pkce: true,
-        disableSignUp: false,
-        overrideUserInfo: false,
-      });
-    });
-
-    it('normalizes issuer by stripping trailing slash', () => {
-      process.env['OIDC_CLIENT_ID'] = 'oidc-id';
-      process.env['OIDC_CLIENT_SECRET'] = 'oidc-secret';
-      process.env['OIDC_ISSUER'] = 'https://auth.example.com/';
-      loadModule();
-
-      expect(mockGenericOAuth).toHaveBeenCalledTimes(1);
-      const pluginConfig = mockGenericOAuth.mock.calls[0][0];
-      expect(pluginConfig.config[0].discoveryUrl).toBe(
-        'https://auth.example.com/.well-known/openid-configuration',
-      );
-    });
-
-    it('uses explicit discovery URL when provided', () => {
-      process.env['OIDC_CLIENT_ID'] = 'oidc-id';
-      process.env['OIDC_CLIENT_SECRET'] = 'oidc-secret';
-      process.env['OIDC_DISCOVERY_URL'] = 'https://auth.example.com/.well-known/custom';
-      loadModule();
-
-      const pluginConfig = mockGenericOAuth.mock.calls[0][0];
-      expect(pluginConfig.config[0].discoveryUrl).toBe(
-        'https://auth.example.com/.well-known/custom',
-      );
-    });
-
-    it('uses explicit endpoints when no issuer is set', () => {
-      process.env['OIDC_CLIENT_ID'] = 'oidc-id';
-      process.env['OIDC_CLIENT_SECRET'] = 'oidc-secret';
-      process.env['OIDC_AUTHORIZATION_URL'] = 'https://auth.example.com/auth';
-      process.env['OIDC_TOKEN_URL'] = 'https://auth.example.com/token';
-      process.env['OIDC_USERINFO_URL'] = 'https://auth.example.com/userinfo';
-      loadModule();
-
-      const pluginConfig = mockGenericOAuth.mock.calls[0][0];
-      expect(pluginConfig.config[0]).toMatchObject({
-        providerId: 'oidc',
-        clientId: 'oidc-id',
-        clientSecret: 'oidc-secret',
-        authorizationUrl: 'https://auth.example.com/auth',
-        tokenUrl: 'https://auth.example.com/token',
-        userInfoUrl: 'https://auth.example.com/userinfo',
-      });
-      expect(pluginConfig.config[0]).not.toHaveProperty('discoveryUrl');
-    });
-
-    it('does not register the plugin when only client id is set', () => {
-      process.env['OIDC_CLIENT_ID'] = 'oidc-id';
-      delete process.env['OIDC_CLIENT_SECRET'];
-      delete process.env['OIDC_ISSUER'];
-      delete process.env['OIDC_DISCOVERY_URL'];
-      delete process.env['OIDC_AUTHORIZATION_URL'];
-      delete process.env['OIDC_TOKEN_URL'];
-      loadModule();
-
-      expect(mockGenericOAuth).not.toHaveBeenCalled();
-    });
-
-    it('does not register the plugin when no endpoint/issuer is set', () => {
-      process.env['OIDC_CLIENT_ID'] = 'oidc-id';
-      process.env['OIDC_CLIENT_SECRET'] = 'oidc-secret';
-      loadModule();
-
-      expect(mockGenericOAuth).not.toHaveBeenCalled();
-    });
-
-    it('uses custom provider id and scopes', () => {
-      process.env['OIDC_CLIENT_ID'] = 'oidc-id';
-      process.env['OIDC_CLIENT_SECRET'] = 'oidc-secret';
-      process.env['OIDC_ISSUER'] = 'https://auth.example.com';
-      process.env['OIDC_PROVIDER_ID'] = 'keycloak';
-      process.env['OIDC_SCOPES'] = 'openid,profile,email,roles';
-      loadModule();
-
-      const pluginConfig = mockGenericOAuth.mock.calls[0][0];
-      expect(pluginConfig.config[0]).toMatchObject({
-        providerId: 'keycloak',
-        scopes: ['openid', 'profile', 'email', 'roles'],
-      });
-    });
-
-    it('parses boolean flags from env', () => {
-      process.env['OIDC_CLIENT_ID'] = 'oidc-id';
-      process.env['OIDC_CLIENT_SECRET'] = 'oidc-secret';
-      process.env['OIDC_ISSUER'] = 'https://auth.example.com';
-      process.env['OIDC_PKCE'] = 'false';
-      process.env['OIDC_DISABLE_SIGN_UP'] = 'true';
-      process.env['OIDC_OVERRIDE_USER_INFO'] = 'true';
-      loadModule();
-
-      const pluginConfig = mockGenericOAuth.mock.calls[0][0];
-      expect(pluginConfig.config[0]).toMatchObject({
-        pkce: false,
-        disableSignUp: true,
-        overrideUserInfo: true,
-      });
-    });
-
-    it('adds the OIDC provider to trusted providers for account linking', () => {
-      process.env['OIDC_CLIENT_ID'] = 'oidc-id';
-      process.env['OIDC_CLIENT_SECRET'] = 'oidc-secret';
-      process.env['OIDC_ISSUER'] = 'https://auth.example.com';
-      process.env['OIDC_PROVIDER_ID'] = 'keycloak';
-      loadModule();
-
-      const config = mockBetterAuth.mock.calls[0][0];
-      expect(config.account.accountLinking.trustedProviders).toEqual([
-        'google',
-        'github',
-        'discord',
-        'keycloak',
-      ]);
-    });
-
-    it('does not add oidc to trusted providers when not configured', () => {
-      loadModule();
-
-      const config = mockBetterAuth.mock.calls[0][0];
-      expect(config.account.accountLinking.trustedProviders).toEqual([
-        'google',
-        'github',
-        'discord',
-      ]);
     });
   });
 
