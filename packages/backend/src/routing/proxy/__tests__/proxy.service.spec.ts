@@ -85,7 +85,10 @@ const specCatalog: ProviderParamSpecCatalog = [
 
 describe('ProxyService — orchestration', () => {
   let resolveService: jest.Mocked<
-    Pick<ResolveService, 'resolve' | 'resolveForTier' | 'resolveHeaderTier'>
+    Pick<
+      ResolveService,
+      'resolve' | 'resolveForTier' | 'resolveHeaderTier' | 'resolveHeaderTierByName'
+    >
   >;
   let providerKeyService: jest.Mocked<
     Pick<
@@ -126,6 +129,7 @@ describe('ProxyService — orchestration', () => {
       resolve: jest.fn(),
       resolveForTier: jest.fn(),
       resolveHeaderTier: jest.fn().mockResolvedValue(null),
+      resolveHeaderTierByName: jest.fn().mockResolvedValue(null),
     };
     modelDiscovery = {
       getModelsForAgent: jest.fn().mockResolvedValue([]),
@@ -1358,9 +1362,68 @@ describe('ProxyService — orchestration', () => {
       );
 
       expect(resolveService.resolveHeaderTier).toHaveBeenCalled();
+      expect(resolveService.resolveHeaderTierByName).toHaveBeenCalledWith(
+        'agent-1',
+        'tenant-1',
+        'gpt-4o-mini',
+      );
       expect(fallbackService.tryForwardToProvider).toHaveBeenCalledWith(
         expect.objectContaining({ provider: 'openai', model: 'gpt-4o-mini' }),
       );
+    });
+
+    // A `model` field that names a UI-configured Header Tier (advertised by
+    // /v1/models) routes through that tier's configured override/fallback
+    // chain instead of being treated as a concrete model id.
+    it('routes a Header Tier name to the tier override, ahead of discovered models', async () => {
+      modelDiscovery.getModelsForAgent.mockResolvedValue([
+        discoveredModel({ id: 'gpt-4o', provider: 'openai', authType: 'api_key' }),
+      ]);
+      resolveService.resolveHeaderTierByName.mockResolvedValue({
+        tier: 'standard',
+        route: route('anthropic', 'api_key', 'claude-3-5-sonnet'),
+        fallback_routes: null,
+        confidence: 1,
+        score: 0,
+        reason: 'header-match',
+        header_tier_id: 'ht-2',
+        header_tier_name: 'smart',
+      });
+
+      await svc.proxyRequest(
+        baseOpts({
+          body: { model: 'smart', messages: [{ role: 'user', content: 'hi' }] },
+        }),
+      );
+
+      // The tier name won, so discovered-model resolution never ran.
+      expect(modelDiscovery.getModelsForAgent).not.toHaveBeenCalled();
+      expect(fallbackService.tryForwardToProvider).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'anthropic',
+          model: 'claude-3-5-sonnet',
+        }),
+      );
+    });
+
+    it('falls through to discovered-model lookup when a tier name matches but has no route', async () => {
+      modelDiscovery.getModelsForAgent.mockResolvedValue([
+        discoveredModel({ id: 'smart', provider: 'openai', authType: 'api_key' }),
+      ]);
+      resolveService.resolveHeaderTierByName.mockResolvedValue(null);
+
+      await svc.proxyRequest(
+        baseOpts({
+          body: { model: 'smart', messages: [{ role: 'user', content: 'hi' }] },
+        }),
+      );
+
+      expect(resolveService.resolveHeaderTierByName).toHaveBeenCalledWith(
+        'agent-1',
+        'tenant-1',
+        'smart',
+      );
+      expect(modelDiscovery.getModelsForAgent).toHaveBeenCalled();
     });
 
     it('does not treat the Anthropic Messages model field as an SDK routing override', async () => {
