@@ -15,23 +15,23 @@ on:
   workflow_dispatch:
     inputs:
       base_version:
-        description: 'Upstream base version (e.g. 6.17.1).'
-        required: true
+        description: 'Upstream のベースバージョン (例: 6.17.1)。空欄の場合、custom_ref から自動検出します。'
+        required: false
         type: string
       custom_ref:
-        description: 'Version-specific custom branch (e.g. custom/6.17.1-sinsky).'
-        required: true
+        description: 'バージョン専用のカスタムブランチまたは ref。未指定の場合は custom/next を使用します。'
+        required: false
         type: string
       custom_sha:
-        description: 'Optional custom commit SHA. Defaults to the custom branch head.'
+        description: '任意のカスタムコミット SHA。未指定の場合はカスタムブランチの HEAD を使用します。'
         required: false
         type: string
       suffix:
-        description: "Optional suffix override for this run. Leave blank to use VERSION_SUFFIX, falling back to 'sinsky'."
+        description: "この実行に対する任意のサフィックス上書き。空欄の場合は VERSION_SUFFIX、さらにフォールバックとして 'sinsky' を使用します。"
         required: false
         type: string
       push_branch:
-        description: 'Push the created release branch (e.g. release/6.17.1-sinsky) to remote origin.'
+        description: '作成したリリースブランチ (例: release/6.17.1-sinsky) をリモートの origin にプッシュします。'
         required: false
         type: boolean
         default: true
@@ -73,7 +73,7 @@ jobs:
           REPO: ${{ forgejo.repository }}
           SERVER: ${{ forgejo.server_url }}
         run: |
-          # 1. Fetch upstream tags
+          # 1. Fetch upstream tags (required for both manual & auto-detected base)
           upstream_remote=$(git remote get-url upstream 2>/dev/null || echo "")
           if [ -z "$upstream_remote" ]; then
             echo "Adding upstream remote..."
@@ -81,20 +81,29 @@ jobs:
           fi
           git fetch upstream --tags --quiet
 
-          # 2. Determine and validate the requested base version.
-          BASE="$INPUT_BASE"
-          UPSTREAM_TAG="manifest@$BASE"
+          # 2. Determine the requested base version (auto-detect from custom_ref when blank).
+          INPUT_CUSTOM_REF="${INPUT_CUSTOM_REF:-custom/next}"
+          if [ -z "$INPUT_BASE" ]; then
+            git fetch origin "$INPUT_CUSTOM_REF" --quiet
+            CUSTOM_BRANCH_REF="origin/$INPUT_CUSTOM_REF"
+            UPSTREAM_TAG=$(git describe --tags --match="manifest@*" --abbrev=0 "$CUSTOM_BRANCH_REF" 2>/dev/null || echo "")
+            if [ -z "$UPSTREAM_TAG" ]; then
+              echo "::error::Could not auto-detect upstream tag from $INPUT_CUSTOM_REF."
+              exit 1
+            fi
+            BASE="${UPSTREAM_TAG#manifest@}"
+            echo "Auto-detected upstream base version: $BASE ($UPSTREAM_TAG) from $INPUT_CUSTOM_REF"
+          else
+            BASE="$INPUT_BASE"
+            UPSTREAM_TAG="manifest@$BASE"
+          fi
           if ! git rev-parse "$UPSTREAM_TAG^{commit}" >/dev/null 2>&1; then
             echo "::error::Upstream tag $UPSTREAM_TAG was not found."
             exit 1
           fi
           BASE_SHA=$(git rev-parse "$UPSTREAM_TAG^{commit}")
-          echo "Using base from workflow input: $UPSTREAM_TAG ($BASE_SHA)"
+          echo "Using base: $UPSTREAM_TAG ($BASE_SHA)"
 
-          if [ -z "$INPUT_CUSTOM_REF" ]; then
-            echo "::error::custom_ref is required."
-            exit 1
-          fi
           git fetch origin "$INPUT_CUSTOM_REF" --quiet
           CUSTOM_BRANCH_REF="origin/$INPUT_CUSTOM_REF"
           if ! git rev-parse "$CUSTOM_BRANCH_REF^{commit}" >/dev/null 2>&1; then
