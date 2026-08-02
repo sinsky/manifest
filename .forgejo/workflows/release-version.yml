@@ -1,0 +1,387 @@
+name: Release Version (Upstream Base)
+
+# Enable OpenID Connect ID token / JWT generation for Authorized Integrations
+enable-openid-connect: true
+
+# Sinsky versioned release workflow for self-hosted Forgejo instance.
+#
+# Creates a release branch (e.g. `release/6.17.1-sinsky`) from the upstream
+# `manifest@<base_version>` tag, merges a version-specific custom ref into it,
+# syncs package version, pushes the branch,
+# builds/publishes Docker image (<host>/<owner>/manifest:<x.y.z>-sinsky), and
+# creates a Forgejo release.
+#
+# Re-release: set `re_push=true` to force-update an already existing
+# `release/<version>` branch (force-with-lease), move the `manifest@<version>`
+# tag, re-publish the Docker image, and PATCH the existing Forgejo release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_version:
+        description: 'Upstream のベースバージョン (例: 6.17.1)。空欄の場合、custom_ref から自動検出します。'
+        required: false
+        type: string
+      custom_ref:
+        description: 'バージョン専用のカスタムブランチまたは ref。未指定の場合は custom/next を使用します。'
+        required: false
+        type: string
+      custom_sha:
+        description: '任意のカスタムコミット SHA。未指定の場合はカスタムブランチの HEAD を使用します。'
+        required: false
+        type: string
+      suffix:
+        description: "この実行に対する任意のサフィックス上書き。空欄の場合は VERSION_SUFFIX、さらにフォールバックとして 'sinsky' を使用します。"
+        required: false
+        type: string
+      push_branch:
+        description: '作成したリリースブランチ (例: release/6.17.1-sinsky) をリモートの origin にプッシュします。'
+        required: false
+        type: boolean
+        default: true
+      re_push:
+        description: '既存の同じバージョンのリリースブランチ・tag・Forgejoリリースが存在する場合でも、force更新で再リリースします。'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  DEFAULT_SUFFIX: sinsky
+
+jobs:
+  create-release-branch:
+    name: Create & merge release branch
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      base: ${{ steps.resolve.outputs.base }}
+      custom_ref: ${{ steps.resolve.outputs.custom_ref }}
+      custom_sha: ${{ steps.resolve.outputs.custom_sha }}
+      branch_name: ${{ steps.resolve.outputs.branch_name }}
+      should_publish: ${{ steps.resolve.outputs.should_publish }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version and setup release branch
+        id: resolve
+        env:
+          INPUT_BASE: ${{ inputs.base_version }}
+          INPUT_CUSTOM_REF: ${{ inputs.custom_ref }}
+          INPUT_CUSTOM_SHA: ${{ inputs.custom_sha }}
+          INPUT_SUFFIX: ${{ inputs.suffix }}
+          INPUT_PUSH_BRANCH: ${{ inputs.push_branch }}
+          INPUT_RE_PUSH: ${{ inputs.re_push }}
+          REPO_SUFFIX: ${{ vars.VERSION_SUFFIX }}
+          DEFAULT_SUFFIX: ${{ env.DEFAULT_SUFFIX }}
+          GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ forgejo.repository }}
+          SERVER: ${{ forgejo.server_url }}
+        run: |
+          # 1. Fetch upstream tags (required for both manual & auto-detected base)
+          upstream_remote=$(git remote get-url upstream 2>/dev/null || echo "")
+          if [ -z "$upstream_remote" ]; then
+            echo "Adding upstream remote..."
+            git remote add upstream https://github.com/mnfst/manifest.git
+          fi
+          git fetch upstream --tags --quiet
+
+          # 2. Determine the requested base version (auto-detect from custom_ref when blank).
+          INPUT_CUSTOM_REF="${INPUT_CUSTOM_REF:-custom/next}"
+          if [ -z "$INPUT_BASE" ]; then
+            git fetch origin "$INPUT_CUSTOM_REF" --quiet
+            CUSTOM_BRANCH_REF="origin/$INPUT_CUSTOM_REF"
+            UPSTREAM_TAG=$(git describe --tags --match="manifest@*" --abbrev=0 "$CUSTOM_BRANCH_REF" 2>/dev/null || echo "")
+            if [ -z "$UPSTREAM_TAG" ]; then
+              echo "::error::Could not auto-detect upstream tag from $INPUT_CUSTOM_REF."
+              exit 1
+            fi
+            BASE="${UPSTREAM_TAG#manifest@}"
+            echo "Auto-detected upstream base version: $BASE ($UPSTREAM_TAG) from $INPUT_CUSTOM_REF"
+          else
+            BASE="$INPUT_BASE"
+            UPSTREAM_TAG="manifest@$BASE"
+          fi
+          if ! git rev-parse "$UPSTREAM_TAG^{commit}" >/dev/null 2>&1; then
+            echo "::error::Upstream tag $UPSTREAM_TAG was not found."
+            exit 1
+          fi
+          BASE_SHA=$(git rev-parse "$UPSTREAM_TAG^{commit}")
+          echo "Using base: $UPSTREAM_TAG ($BASE_SHA)"
+
+          git fetch origin "$INPUT_CUSTOM_REF" --quiet
+          CUSTOM_BRANCH_REF="origin/$INPUT_CUSTOM_REF"
+          if ! git rev-parse "$CUSTOM_BRANCH_REF^{commit}" >/dev/null 2>&1; then
+            echo "::error::Custom ref $INPUT_CUSTOM_REF was not found on origin."
+            exit 1
+          fi
+          CUSTOM_SHA="${INPUT_CUSTOM_SHA:-$(git rev-parse "$CUSTOM_BRANCH_REF^{commit}")}"
+          if ! git rev-parse "$CUSTOM_SHA^{commit}" >/dev/null 2>&1; then
+            echo "::error::Custom commit $CUSTOM_SHA was not found."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$CUSTOM_SHA" "$CUSTOM_BRANCH_REF"; then
+            echo "::error::Custom commit must belong to $INPUT_CUSTOM_REF."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$BASE_SHA" "$CUSTOM_SHA"; then
+            echo "::error::Custom ref must be based on upstream $UPSTREAM_TAG."
+            exit 1
+          fi
+
+          # A version-specific custom branch must not contain later upstream
+          # commits. Custom commits are allowed only when they are not already
+          # reachable from upstream/main.
+          git fetch upstream main --quiet
+          while IFS= read -r commit; do
+            if git merge-base --is-ancestor "$commit" upstream/main; then
+              echo "::error::Custom ref contains upstream commit $commit after $UPSTREAM_TAG."
+              exit 1
+            fi
+          done < <(git rev-list "$CUSTOM_SHA" --not "$BASE_SHA")
+
+          echo "custom_sha=$CUSTOM_SHA" >> "$GITHUB_OUTPUT"
+          echo "custom_ref=$INPUT_CUSTOM_REF" >> "$GITHUB_OUTPUT"
+          echo "Custom ref: $INPUT_CUSTOM_REF ($CUSTOM_SHA)"
+
+          SUFFIX="${INPUT_SUFFIX:-${REPO_SUFFIX:-$DEFAULT_SUFFIX}}"
+          VERSION="$BASE"
+          if [ -n "$SUFFIX" ]; then
+            VERSION="$BASE-$SUFFIX"
+          fi
+
+          BRANCH_NAME="release/${VERSION}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+          echo "should_publish=true" >> "$GITHUB_OUTPUT"
+
+          echo "Target Release Branch: $BRANCH_NAME"
+          echo "Base Upstream Tag: manifest@$BASE"
+
+          # 3. Configure bot identity
+          git config user.name "forgejo-actions[bot]"
+          git config user.email "forgejo-actions[bot]@noreply.${SERVER#https://}"
+          git remote set-url origin "${SERVER}/${REPO}.git"
+          echo "machine ${SERVER#https://} login forgejo-actions password ${GIT_TOKEN}" > ~/.netrc
+          chmod 600 ~/.netrc
+
+          PREV_RELEASE_SHA=""
+          if git ls-remote --exit-code origin "refs/heads/$BRANCH_NAME" >/dev/null 2>&1; then
+            if [ "$INPUT_RE_PUSH" = "true" ]; then
+              PREV_RELEASE_SHA=$(git ls-remote origin "refs/heads/$BRANCH_NAME" | cut -f1)
+              echo "Release branch $BRANCH_NAME already exists; re-pushing (re_push=true) from $PREV_RELEASE_SHA."
+            else
+              echo "::error::Release branch $BRANCH_NAME already exists; refusing to overwrite it. Set re_push=true to re-release."
+              exit 1
+            fi
+          fi
+
+          # 4. Checkout the upstream tag and create/reset the release branch.
+          git fetch upstream tag "$UPSTREAM_TAG" --no-tags
+
+          git checkout -B "$BRANCH_NAME" "$UPSTREAM_TAG"
+
+          # 5. Merge the pinned custom commit into the release branch.
+          echo "Merging $CUSTOM_SHA from $INPUT_CUSTOM_REF into $BRANCH_NAME..."
+          if ! git merge --no-ff "$CUSTOM_SHA" \
+            -m "chore(release): merge $INPUT_CUSTOM_REF into $BRANCH_NAME"; then
+            echo "::error::Git merge conflict encountered while merging $INPUT_CUSTOM_REF into $BRANCH_NAME. Please resolve conflicts locally and push $BRANCH_NAME manually."
+            exit 1
+          fi
+
+          # 6. Sync packages/manifest/package.json version
+          CURRENT=$(node -p "require('./packages/manifest/package.json').version")
+          if [ "$CURRENT" != "$BASE" ]; then
+            BASE="$BASE" node -e "const fs=require('fs');const f='packages/manifest/package.json';const p=JSON.parse(fs.readFileSync(f,'utf8'));p.version=process.env.BASE;fs.writeFileSync(f,JSON.stringify(p,null,2)+'\n');"
+            git add packages/manifest/package.json
+            git commit -m "chore: sync manifest package.json version to upstream $BASE"
+          fi
+
+          # 7. Push release branch to origin
+          if [ "$INPUT_PUSH_BRANCH" != "false" ]; then
+            echo "Pushing $BRANCH_NAME to origin..."
+            if [ "$INPUT_RE_PUSH" = "true" ] && [ -n "$PREV_RELEASE_SHA" ]; then
+              git push -u origin "$BRANCH_NAME" --force-with-lease="$BRANCH_NAME:$PREV_RELEASE_SHA"
+            elif [ "$INPUT_RE_PUSH" = "true" ]; then
+              git push -u origin "$BRANCH_NAME" --force
+            else
+              git push -u origin "$BRANCH_NAME"
+            fi
+          fi
+
+  publish-docker:
+    name: Build & publish Docker image
+    needs: create-release-branch
+    if: needs.create-release-branch.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.create-release-branch.outputs.branch_name }}
+
+      - name: Resolve image ref
+        id: ref
+        env:
+          VERSION: ${{ needs.create-release-branch.outputs.version }}
+          SERVER: ${{ forgejo.server_url }}
+          OWNER: ${{ forgejo.repository_owner }}
+          REPO_REGISTRY: ${{ vars.HOST_FORGEJO_REGISTRY }}
+        run: |
+          if [ -n "$REPO_REGISTRY" ]; then
+            HOST="$(printf '%s' "$REPO_REGISTRY" | sed -E 's#^[a-z]+://##' | tr '[:upper:]' '[:lower:]')"
+          else
+            HOST="$(printf '%s' "$SERVER" | sed -E 's#^[a-z]+://##' | tr '[:upper:]' '[:lower:]')"
+          fi
+          OWNER_LC="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+          IMAGE="${HOST}/${OWNER_LC}/manifest"
+          echo "registry=$HOST" >> "$GITHUB_OUTPUT"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Image ref: $IMAGE:$VERSION"
+
+      - uses: docker/setup-qemu-action@v4
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Fetch JWT for Authorized Integration
+        id: jwt
+        env:
+          AUD: u:1:5e11475e-5bf3-4769-8e66-1b2eb3fcd1a0
+        run: |
+          res=$(curl --fail -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUD")
+          jwt=$(echo "$res" | node -e 'const fs=require("fs"); process.stdout.write(JSON.parse(fs.readFileSync(0, "utf-8")).value);' 2>/dev/null || echo "$res" | jq -r ".value")
+          echo "::add-mask::$jwt"
+          echo "jwt=$jwt" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Forgejo container registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ steps.ref.outputs.registry }}
+          username: ${{ forgejo.actor }}
+          password: ${{ steps.jwt.outputs.jwt }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.ref.outputs.image }}
+          flavor: |
+            latest=false
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.ref.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.ref.outputs.version }}
+            type=semver,pattern={{major}},value=${{ steps.ref.outputs.version }}
+            type=raw,value=${{ steps.ref.outputs.version }}
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+
+      - name: Inspect published image
+        env:
+          IMAGE: ${{ steps.ref.outputs.image }}
+          VERSION: ${{ steps.ref.outputs.version }}
+        run: |
+          docker buildx imagetools inspect "${IMAGE}:${VERSION}"
+
+  forgejo-release:
+    name: Create Forgejo release
+    needs: [create-release-branch, publish-docker]
+    if: needs.create-release-branch.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.create-release-branch.outputs.branch_name }}
+          fetch-depth: 0
+
+      - name: Create Forgejo release
+        env:
+          VERSION: ${{ needs.create-release-branch.outputs.version }}
+          BASE: ${{ needs.create-release-branch.outputs.base }}
+          CUSTOM_REF: ${{ needs.create-release-branch.outputs.custom_ref }}
+          CUSTOM_SHA: ${{ needs.create-release-branch.outputs.custom_sha }}
+          BRANCH_NAME: ${{ needs.create-release-branch.outputs.branch_name }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SERVER: ${{ forgejo.server_url }}
+          REPO: ${{ forgejo.repository }}
+          REPO_REGISTRY: ${{ vars.HOST_FORGEJO_REGISTRY }}
+          INPUT_RE_PUSH: ${{ inputs.re_push }}
+        run: |
+          TAG="manifest@${VERSION}"
+          git config user.name "forgejo-actions[bot]"
+          git config user.email "forgejo-actions[bot]@noreply.${SERVER#https://}"
+          echo "machine ${SERVER#https://} login forgejo-actions password ${TOKEN}" > ~/.netrc
+          chmod 600 ~/.netrc
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            if [ "$INPUT_RE_PUSH" != "true" ]; then
+              echo "Tag $TAG already exists; skipping release creation."
+              exit 0
+            fi
+            echo "Tag $TAG already exists; force-moving it to the re-pushed release branch (re_push=true)."
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
+
+          OWNER_LC="$(printf '%s' "${REPO%%/*}" | tr '[:upper:]' '[:lower:]')"
+          if [ -n "$REPO_REGISTRY" ]; then
+            HOST="$(printf '%s' "$REPO_REGISTRY" | sed -E 's#^[a-z]+://##' | tr '[:upper:]' '[:lower:]')"
+          else
+            HOST="$(printf '%s' "$SERVER" | sed -E 's#^[a-z]+://##' | tr '[:upper:]' '[:lower:]')"
+          fi
+          IMAGE_NOTE="Docker image: \`${HOST}/${OWNER_LC}/manifest:${VERSION}\`"
+
+          BODY="Sinsky release branch \`${BRANCH_NAME}\` (Forgejo). Base version: upstream manifest@${BASE}. Custom ref: \`${CUSTOM_REF}\` at \`${CUSTOM_SHA}\`. ${IMAGE_NOTE}. See upstream changelog for details."
+          PAYLOAD=$(TAG="$TAG" NAME="manifest v${VERSION}" BODY="$BODY" node -e '
+            const p = {
+              tag_name: process.env.TAG,
+              name: process.env.NAME,
+              body: process.env.BODY,
+              draft: false,
+              prerelease: false,
+            };
+            process.stdout.write(JSON.stringify(p));
+          ')
+
+          EXISTING=$(curl -fsS -H "Authorization: token ${TOKEN}" "${SERVER}/api/v1/repos/${REPO}/releases/tags/${TAG}" 2>/dev/null || echo "")
+          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+            ID=$(echo "$EXISTING" | node -e 'const fs=require("fs"); process.stdout.write(JSON.parse(fs.readFileSync(0, "utf-8")).id);' 2>/dev/null)
+            if [ -n "$ID" ] && [ "$ID" != "null" ]; then
+              echo "Release with tag $TAG already exists (id=$ID); updating it."
+              curl -fsS -X PATCH \
+                -H "Authorization: token ${TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "$PAYLOAD" \
+                "${SERVER}/api/v1/repos/${REPO}/releases/${ID}"
+              exit 0
+            fi
+          fi
+
+          curl -fsS -X POST \
+            -H "Authorization: token ${TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            "${SERVER}/api/v1/repos/${REPO}/releases"
