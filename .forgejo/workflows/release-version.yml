@@ -10,6 +10,10 @@ enable-openid-connect: true
 # syncs package version, pushes the branch,
 # builds/publishes Docker image (<host>/<owner>/manifest:<x.y.z>-sinsky), and
 # creates a Forgejo release.
+#
+# Re-release: set `re_push=true` to force-update an already existing
+# `release/<version>` branch (force-with-lease), move the `manifest@<version>`
+# tag, re-publish the Docker image, and PATCH the existing Forgejo release.
 
 on:
   workflow_dispatch:
@@ -35,6 +39,11 @@ on:
         required: false
         type: boolean
         default: true
+      re_push:
+        description: '既存の同じバージョンのリリースブランチ・tag・Forgejoリリースが存在する場合でも、force更新で再リリースします。'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -67,6 +76,7 @@ jobs:
           INPUT_CUSTOM_SHA: ${{ inputs.custom_sha }}
           INPUT_SUFFIX: ${{ inputs.suffix }}
           INPUT_PUSH_BRANCH: ${{ inputs.push_branch }}
+          INPUT_RE_PUSH: ${{ inputs.re_push }}
           REPO_SUFFIX: ${{ vars.VERSION_SUFFIX }}
           DEFAULT_SUFFIX: ${{ env.DEFAULT_SUFFIX }}
           GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -161,15 +171,21 @@ jobs:
           echo "machine ${SERVER#https://} login forgejo-actions password ${GIT_TOKEN}" > ~/.netrc
           chmod 600 ~/.netrc
 
+          PREV_RELEASE_SHA=""
           if git ls-remote --exit-code origin "refs/heads/$BRANCH_NAME" >/dev/null 2>&1; then
-            echo "::error::Release branch $BRANCH_NAME already exists; refusing to overwrite it."
-            exit 1
+            if [ "$INPUT_RE_PUSH" = "true" ]; then
+              PREV_RELEASE_SHA=$(git ls-remote origin "refs/heads/$BRANCH_NAME" | cut -f1)
+              echo "Release branch $BRANCH_NAME already exists; re-pushing (re_push=true) from $PREV_RELEASE_SHA."
+            else
+              echo "::error::Release branch $BRANCH_NAME already exists; refusing to overwrite it. Set re_push=true to re-release."
+              exit 1
+            fi
           fi
 
-          # 4. Checkout the upstream tag and create the release branch.
+          # 4. Checkout the upstream tag and create/reset the release branch.
           git fetch upstream tag "$UPSTREAM_TAG" --no-tags
 
-          git checkout -b "$BRANCH_NAME" "$UPSTREAM_TAG"
+          git checkout -B "$BRANCH_NAME" "$UPSTREAM_TAG"
 
           # 5. Merge the pinned custom commit into the release branch.
           echo "Merging $CUSTOM_SHA from $INPUT_CUSTOM_REF into $BRANCH_NAME..."
@@ -190,7 +206,13 @@ jobs:
           # 7. Push release branch to origin
           if [ "$INPUT_PUSH_BRANCH" != "false" ]; then
             echo "Pushing $BRANCH_NAME to origin..."
-            git push -u origin "$BRANCH_NAME"
+            if [ "$INPUT_RE_PUSH" = "true" ] && [ -n "$PREV_RELEASE_SHA" ]; then
+              git push -u origin "$BRANCH_NAME" --force-with-lease="$BRANCH_NAME:$PREV_RELEASE_SHA"
+            elif [ "$INPUT_RE_PUSH" = "true" ]; then
+              git push -u origin "$BRANCH_NAME" --force
+            else
+              git push -u origin "$BRANCH_NAME"
+            fi
           fi
 
   publish-docker:
@@ -303,19 +325,26 @@ jobs:
           SERVER: ${{ forgejo.server_url }}
           REPO: ${{ forgejo.repository }}
           REPO_REGISTRY: ${{ vars.HOST_FORGEJO_REGISTRY }}
+          INPUT_RE_PUSH: ${{ inputs.re_push }}
         run: |
           TAG="manifest@${VERSION}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists; skipping release creation."
-            exit 0
-          fi
-
           git config user.name "forgejo-actions[bot]"
           git config user.email "forgejo-actions[bot]@noreply.${SERVER#https://}"
-          git tag "$TAG"
           echo "machine ${SERVER#https://} login forgejo-actions password ${TOKEN}" > ~/.netrc
           chmod 600 ~/.netrc
-          git push origin "$TAG"
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            if [ "$INPUT_RE_PUSH" != "true" ]; then
+              echo "Tag $TAG already exists; skipping release creation."
+              exit 0
+            fi
+            echo "Tag $TAG already exists; force-moving it to the re-pushed release branch (re_push=true)."
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
 
           OWNER_LC="$(printf '%s' "${REPO%%/*}" | tr '[:upper:]' '[:lower:]')"
           if [ -n "$REPO_REGISTRY" ]; then
@@ -336,6 +365,20 @@ jobs:
             };
             process.stdout.write(JSON.stringify(p));
           ')
+
+          EXISTING=$(curl -fsS -H "Authorization: token ${TOKEN}" "${SERVER}/api/v1/repos/${REPO}/releases/tags/${TAG}" 2>/dev/null || echo "")
+          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+            ID=$(echo "$EXISTING" | node -e 'const fs=require("fs"); process.stdout.write(JSON.parse(fs.readFileSync(0, "utf-8")).id);' 2>/dev/null)
+            if [ -n "$ID" ] && [ "$ID" != "null" ]; then
+              echo "Release with tag $TAG already exists (id=$ID); updating it."
+              curl -fsS -X PATCH \
+                -H "Authorization: token ${TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "$PAYLOAD" \
+                "${SERVER}/api/v1/repos/${REPO}/releases/${ID}"
+              exit 0
+            fi
+          fi
 
           curl -fsS -X POST \
             -H "Authorization: token ${TOKEN}" \
