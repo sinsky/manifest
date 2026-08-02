@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // module under test (`auth-client.ts`) imports this symbol and invokes it
 // once at module-load time, so we mock it before any dynamic import below.
 // Use `vi.hoisted` so the spy is available to the hoisted `vi.mock` factory.
-const { createAuthClientMock, stripeClientMock } = vi.hoisted(() => ({
+const { createAuthClientMock, stripeClientMock, genericOAuthClientMock } = vi.hoisted(() => ({
   createAuthClientMock: vi.fn((config: unknown) => ({
     __mockClient: true,
     config,
@@ -12,6 +12,9 @@ const { createAuthClientMock, stripeClientMock } = vi.hoisted(() => ({
   // `stripeClient` is a factory the module passes into `plugins`. We tag the
   // return value so the test can assert the plugin was actually wired in.
   stripeClientMock: vi.fn((opts: unknown) => ({ __stripePlugin: true, opts })),
+  // `genericOAuthClient` widens the client with `signIn.oauth2`, which the
+  // login page uses for the generic OIDC provider.
+  genericOAuthClientMock: vi.fn(() => ({ __genericOAuthPlugin: true })),
 }));
 
 vi.mock("better-auth/solid", () => ({
@@ -22,6 +25,10 @@ vi.mock("@better-auth/stripe/client", () => ({
   stripeClient: stripeClientMock,
 }));
 
+vi.mock("better-auth/client/plugins", () => ({
+  genericOAuthClient: genericOAuthClientMock,
+}));
+
 describe("authClient", () => {
   beforeEach(() => {
     // Each test re-imports the module to re-trigger the top-level
@@ -29,6 +36,7 @@ describe("authClient", () => {
     vi.resetModules();
     createAuthClientMock.mockClear();
     stripeClientMock.mockClear();
+    genericOAuthClientMock.mockClear();
 
     // Pin `window.location.origin` to a deterministic value. jsdom would
     // otherwise return "http://localhost:3000", which is fine but we want
@@ -68,7 +76,7 @@ describe("authClient", () => {
     expect(config.basePath).toBe("/api/auth");
   });
 
-  it("registers the stripe subscription client plugin", async () => {
+  it("registers the stripe subscription and generic OAuth client plugins", async () => {
     await import("../../src/services/auth-client.js");
 
     // `stripeClient` must be called once with subscription mode enabled...
@@ -77,12 +85,14 @@ describe("authClient", () => {
 
     // ...and the returned plugin must be passed into `createAuthClient`'s
     // `plugins` array, which is what widens the client type with the
-    // `subscription` namespace in production.
+    // `subscription` namespace in production. `genericOAuthClient` follows
+    // it so `signIn.oauth2` is available for the generic OIDC provider.
     const config = createAuthClientMock.mock.calls[0][0] as {
       plugins: unknown[];
     };
-    expect(config.plugins).toHaveLength(1);
+    expect(config.plugins).toHaveLength(2);
     expect(config.plugins[0]).toBe(stripeClientMock.mock.results[0].value);
+    expect(config.plugins[1]).toBe(genericOAuthClientMock.mock.results[0].value);
   });
 
   it("exports authClient as createAuthClient return type", async () => {

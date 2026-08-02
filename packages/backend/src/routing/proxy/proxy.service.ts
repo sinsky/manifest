@@ -906,6 +906,17 @@ export class ProxyService {
       if (headerTier) return headerTier;
     }
 
+    // A `model` field naming a UI-configured Header Tier (e.g. "smart",
+    // "free") routes through the tier's override/fallback chain. Tier names
+    // are advertised by `/v1/models` ahead of discovered models so an agent
+    // picking one expresses operator intent, not a concrete upstream id.
+    const tierByName = await this.resolveService.resolveHeaderTierByName(
+      agentId,
+      tenantId,
+      requestedModel,
+    );
+    if (tierByName) return tierByName;
+
     const models = await this.modelDiscovery.getModelsForAgent(tenantId, agentId);
     const route = routeForOpenAiModelId(requestedModel, models);
     if (!route) {
