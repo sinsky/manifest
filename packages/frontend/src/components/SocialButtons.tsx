@@ -4,16 +4,19 @@ import { authClient } from '../services/auth-client.js';
 import { buildSocialAuthUrls } from '../services/auth-redirects.js';
 import { setLastAuthMethod } from '../services/last-auth-method.js';
 
-type Provider = 'google' | 'github' | 'discord';
+type SocialProvider = 'google' | 'github' | 'discord';
 
-const allProviders: { id: Provider; label: string }[] = [
+const socialProviders: { id: SocialProvider; label: string }[] = [
   { id: 'google', label: 'Continue with Google' },
   { id: 'github', label: 'Continue with GitHub' },
   { id: 'discord', label: 'Continue with Discord' },
 ];
 
+const isSocialProvider = (id: string): id is SocialProvider =>
+  socialProviders.some((p) => p.id === id);
+
 const handleSocialLogin = (
-  provider: Provider,
+  provider: SocialProvider,
   urls: { callbackURL: string; errorCallbackURL: string },
 ) => {
   setLastAuthMethod(provider);
@@ -23,7 +26,19 @@ const handleSocialLogin = (
   });
 };
 
-const providerIcons: Record<Provider, () => JSX.Element> = {
+const handleOidcLogin = (
+  providerId: string,
+  urls: { callbackURL: string; errorCallbackURL: string },
+) => {
+  setLastAuthMethod(providerId);
+  authClient.signIn.oauth2({
+    providerId,
+    callbackURL: urls.callbackURL,
+    errorCallbackURL: urls.errorCallbackURL,
+  });
+};
+
+const providerIcons: Record<SocialProvider, () => JSX.Element> = {
   google: () => (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
       <path
@@ -56,20 +71,40 @@ const providerIcons: Record<Provider, () => JSX.Element> = {
   ),
 };
 
+const OidcIcon: () => JSX.Element = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    <path d="M9 12l2 2 4-4" />
+  </svg>
+);
+
 const SocialButtons: Component<{ enabledProviders?: string[]; lastUsed?: string | null }> = (
   props,
 ) => {
   const [searchParams] = useSearchParams();
-  const visible = () => {
-    if (!props.enabledProviders) return allProviders;
-    return allProviders.filter((p) => props.enabledProviders!.includes(p.id));
-  };
+  const enabled = () => props.enabledProviders ?? socialProviders.map((p) => p.id);
+  const visibleSocial = () => socialProviders.filter((p) => enabled().includes(p.id));
+  // Any enabled provider that isn't a known social id is a generic OIDC
+  // provider — the backend reports `OIDC_PROVIDER_ID` (default `oidc`) in
+  // `socialProviders`, and its login flow is started with `signIn.oauth2`
+  // rather than `signIn.social`.
+  const oidcProviders = () => enabled().filter((id) => !isSocialProvider(id));
   const authUrls = () => buildSocialAuthUrls(searchParams);
 
   return (
-    <Show when={visible().length > 0}>
+    <Show when={visibleSocial().length > 0 || oidcProviders().length > 0}>
       <div class="auth-social-group">
-        <For each={visible()}>
+        <For each={visibleSocial()}>
           {(provider) => (
             <button
               class={`auth-social-btn auth-social-btn--${provider.id}`}
@@ -78,6 +113,24 @@ const SocialButtons: Component<{ enabledProviders?: string[]; lastUsed?: string 
               <span class="auth-social-btn__icon">{providerIcons[provider.id]()}</span>
               <span class="auth-social-btn__label">{provider.label}</span>
               <Show when={props.lastUsed === provider.id}>
+                <span class="auth-last-used" aria-label="Last used">
+                  Last used
+                </span>
+              </Show>
+            </button>
+          )}
+        </For>
+        <For each={oidcProviders()}>
+          {(providerId) => (
+            <button
+              class={`auth-social-btn auth-social-btn--oidc auth-social-btn--${providerId}`}
+              onClick={() => handleOidcLogin(providerId, authUrls())}
+            >
+              <span class="auth-social-btn__icon">
+                <OidcIcon />
+              </span>
+              <span class="auth-social-btn__label">Continue with OIDC</span>
+              <Show when={props.lastUsed === providerId}>
                 <span class="auth-last-used" aria-label="Last used">
                   Last used
                 </span>
