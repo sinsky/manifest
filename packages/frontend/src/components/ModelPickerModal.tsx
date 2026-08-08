@@ -1,4 +1,4 @@
-import { createSignal, For, onMount, Show, type Component } from 'solid-js';
+import { createSignal, For, onMount, Show, startTransition, type Component } from 'solid-js';
 import {
   refreshModels,
   refreshProviderModels,
@@ -119,7 +119,9 @@ const ModelPickerModal: Component<Props> = (props) => {
     props.requiredCapability ? new Set([props.requiredCapability]) : new Set(),
   );
   const [refreshingProvId, setRefreshingProvId] = createSignal<string | null>(null);
-  const [refreshingAll, setRefreshingAll] = createSignal(false);
+  // Parent callbacks refetch resources read inside this modal's Suspense
+  // boundary. Keep the current picker visible until those resources settle.
+  const notifyProviderRefreshed = () => startTransition(() => props.onProviderRefreshed?.());
 
   onMount(() => {
     const agentName = props.agentName;
@@ -133,17 +135,14 @@ const ModelPickerModal: Component<Props> = (props) => {
     );
     if (!needsRefresh) return;
 
-    setRefreshingAll(true);
-    void (async () => {
-      try {
-        await refreshModels(agentName);
-        await props.onProviderRefreshed?.();
-      } catch {
-        // network/server error toast already raised by fetchMutate
-      } finally {
-        setRefreshingAll(false);
-      }
-    })();
+    const refreshKey = `manifest:routing-model-refresh:${agentName}`;
+    const today = now.toDateString();
+    if (sessionStorage.getItem(refreshKey) === today) return;
+    sessionStorage.setItem(refreshKey, today);
+
+    void refreshModels(agentName)
+      .then(() => notifyProviderRefreshed())
+      .catch(() => undefined);
   });
 
   const toggleCapability = (cap: ModelCapability) => {
@@ -177,7 +176,7 @@ const ModelPickerModal: Component<Props> = (props) => {
       } else {
         toast.error(result.error ?? `Couldn't refresh ${displayName}`);
       }
-      await props.onProviderRefreshed?.();
+      await notifyProviderRefreshed();
     } catch {
       // network/server error toast already raised by fetchMutate
     } finally {
@@ -619,7 +618,7 @@ const ModelPickerModal: Component<Props> = (props) => {
                   <Show when={props.agentName && !group.provId.startsWith('custom:')}>
                     <button
                       class="routing-modal__group-refresh"
-                      disabled={refreshingAll() || refreshingProvId() !== null}
+                      disabled={refreshingProvId() !== null}
                       onClick={(e) => {
                         e.stopPropagation();
                         void handleRefreshGroup(group.provId, group.name);
@@ -639,7 +638,7 @@ const ModelPickerModal: Component<Props> = (props) => {
                         aria-hidden="true"
                         classList={{
                           'routing-modal__group-refresh-icon--spinning':
-                            refreshingAll() || refreshingProvId() === group.provId,
+                            refreshingProvId() === group.provId,
                         }}
                       >
                         <path d="M21 12a9 9 0 1 1-3-6.7L21 8" />

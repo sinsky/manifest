@@ -33,11 +33,15 @@ export class AgentMessage {
   request_id!: string | null;
 
   /**
-   * Positive provider-call start order within the parent Request. NULL only for
-   * legacy rows that have not been assigned an unambiguous order.
+   * Positive route-attempt order within the parent Request. NULL only for legacy
+   * rows that have not been assigned an unambiguous order.
    */
   @Column('integer', { nullable: true })
   attempt_number!: number | null;
+
+  /** External S3/filesystem object for this Provider Attempt's exact payload. */
+  @Column('varchar', { nullable: true })
+  recording_key!: string | null;
 
   @Column('varchar', { nullable: true })
   tenant_id!: string | null;

@@ -20,21 +20,19 @@ One logical request from an agent to Manifest.
 - Database table: `requests`
 - Primary key: `requests.id`
 - Status: `requests.status`
-- A Request ultimately has one caller-visible outcome and may have zero, one, or many Provider Attempts.
-
-A zero-attempt Request is valid when Manifest rejects it before contacting an AI provider.
+- A Request ultimately has one caller-visible outcome and may have one or many Provider Attempts.
 
 ### Provider Attempt
 
-One request from Manifest to an AI provider while serving a Manifest Request.
+One route evaluation while serving a Manifest Request. Most Attempts call an AI provider; Manifest-local failures are also retained as failed Attempts so the full routing chain is visible.
 
-- Direction: Manifest → AI provider
+- Direction: Manifest → AI provider, or internal when Manifest rejects the route locally
 - Database table: `agent_messages` (the physical legacy name is retained for safe rolling deploys)
 - Parent Request: `agent_messages.request_id → requests.id`
 - Order within the Request: `agent_messages.attempt_number`
 - Status: `agent_messages.status`
 
-Every provider call counts as an Attempt, including failed calls, fallback attempts, and Auto-fix retries.
+Every provider call counts as an Attempt, including failed calls, fallback attempts, and Auto-fix retries. Manifest-local failures such as a route skipped during provider cooldown also count as failed Attempts, but their Manifest error origin keeps them out of provider-reliability metrics.
 
 ### Status
 
@@ -63,7 +61,7 @@ When a Request with at least one Attempt succeeds, its Last Attempt must also be
 
 The Last Attempt is the final Provider Attempt within a Request: the Attempt with the highest `attempt_number`. For a completed Request, it is also the Attempt that concluded the Request: the successful Attempt when the Request succeeded, otherwise the terminal non-superseded failure. A zero-attempt Request has no Last Attempt.
 
-Attempt numbers are positive, unique within their Request, and increase in the order Manifest starts provider calls. Do not derive Attempt order from timestamps. `agent_messages.timestamp` records the real provider-call start time, and `agent_messages.duration_ms` records measured elapsed time once the Attempt is terminal. Neither may be fabricated to create an ordering. Superseded Attempts are never the Last Attempt of a completed Request.
+Attempt numbers are positive, unique within their Request, and increase in the order Manifest evaluates routes. Do not derive Attempt order from timestamps. `agent_messages.timestamp` records the real route-evaluation or provider-call start time, and `agent_messages.duration_ms` records measured elapsed time once the Attempt is terminal. Neither may be fabricated to create an ordering. Superseded Attempts are never the Last Attempt of a completed Request.
 
 Historical Attempts linked during the migration may have a null `attempt_number` when their order could not be reconstructed safely. Readers may use the legacy compatibility ranking (successful outcome, then non-superseded failure, then timestamp and id) to select a representative terminal Attempt, but must not present that inferred position as an Attempt number. All newly recorded Attempts require a positive `attempt_number`.
 
