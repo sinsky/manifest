@@ -19,6 +19,7 @@ import { createSsePayloadParser } from './sse-parser';
 import {
   classifyProviderError,
   openAiErrorTypeForStatus,
+  parseStructuredProviderError,
   sanitizeProviderError,
 } from './proxy-error-sanitizer';
 import {
@@ -53,7 +54,7 @@ import type { AttemptRecordingCapture } from './attempt-recording-capture';
 
 const logger = new Logger('ProxyResponseHandler');
 
-/** The current primary is attempt 2 only when Auto-fix actually sent a retry. */
+/** The current primary is attempt 2 only when Autofix actually sent a retry. */
 export function currentPrimaryAttemptNumber(autofix: AutofixRecord | undefined): number {
   return getAutofixRetry(autofix) ? 2 : 1;
 }
@@ -135,7 +136,12 @@ function recordAutofixOriginalIfRetried(
       requestHeaders,
       requestParams: meta.request_params,
       specificityCategory: meta.specificity_category,
-      providerKeyLabel: meta.provider_key_label,
+      // Same rule as tenantProviderId below: on a fallback-success flow
+      // `provider_key_label` names the connection that RECOVERED the request,
+      // while this row belongs to the primary that failed. The direct-success
+      // call site is guarded by `!meta.fallbackFromModel`, so primaryKeyLabel
+      // is absent there and the meta label is already the right one.
+      providerKeyLabel: meta.primaryKeyLabel ?? meta.provider_key_label,
       tenantProviderId:
         route?.tenantProviderId === undefined ? meta.tenantProviderId : route.tenantProviderId,
       headerTierId: meta.header_tier_id,
@@ -188,15 +194,27 @@ export function buildOpenAiCompatibleError(
     code?: string | null;
     provider?: string;
     model?: string;
+    apiMode?: ProxyApiMode;
     extra?: Record<string, unknown>;
   } = {},
 ): Record<string, unknown> {
   const classified = classifyProviderError(status, errorBody);
+  const structured = parseStructuredProviderError(status, errorBody);
   return {
-    message: classified?.message ?? sanitizeProviderError(status, errorBody, process.env.NODE_ENV),
-    type: classified?.type ?? openAiErrorTypeForStatus(status),
-    param: null,
-    code: opts.code !== undefined ? opts.code : (classified?.code ?? null),
+    message:
+      classified?.message ??
+      structured?.message ??
+      sanitizeProviderError(status, errorBody, process.env.NODE_ENV),
+    type:
+      classified?.type ??
+      structured?.type ??
+      (opts.apiMode === 'messages' && status >= 500
+        ? status === 529
+          ? 'overloaded_error'
+          : 'api_error'
+        : openAiErrorTypeForStatus(status)),
+    param: structured?.param ?? null,
+    code: opts.code !== undefined ? opts.code : (classified?.code ?? structured?.code ?? null),
     status,
     source: opts.source ?? classified?.source ?? 'provider',
     ...(opts.provider ? { provider: opts.provider } : {}),
@@ -220,6 +238,7 @@ export async function handleProviderError(
   autofix?: AutofixRecord,
   requestId: string = uuid(),
   requestDurationMs?: number,
+  apiMode?: ProxyApiMode,
 ): Promise<void> {
   recordAutofixOriginalIfRetried(
     ctx,
@@ -248,6 +267,7 @@ export async function handleProviderError(
       autofix,
       requestId,
       requestDurationMs,
+      apiMode,
     );
     return;
   }
@@ -277,6 +297,7 @@ export async function handleProviderError(
       headerTierName: meta.header_tier_name,
       headerTierColor: meta.header_tier_color,
       autofix,
+      apiMode,
     }),
     'provider error',
   );
@@ -287,10 +308,12 @@ export async function handleProviderError(
   res.status(errorStatus);
   setHeaders(res, metaHeaders);
   const responseBody = {
+    ...(apiMode === 'messages' ? { type: 'error' } : {}),
     error: buildOpenAiCompatibleError(errorStatus, errorBody, {
       source: 'provider',
       provider: meta.provider,
       model: meta.model,
+      apiMode,
     }),
   };
   res.json(responseBody);
@@ -311,6 +334,7 @@ function handleFallbackExhausted(
   autofix: AutofixRecord | undefined,
   requestId: string,
   requestDurationMs?: number,
+  apiMode?: ProxyApiMode,
 ): void {
   const baseTime = Date.now();
   const primaryAttemptNumber = currentPrimaryAttemptNumber(autofix);
@@ -323,6 +347,7 @@ function handleFallbackExhausted(
       markHandled: true,
       lastAsError: true,
       authType: meta.auth_type,
+      providerKeyLabel: meta.provider_key_label,
       reason: meta.reason,
       callerAttribution,
       requestHeaders,
@@ -353,6 +378,7 @@ function handleFallbackExhausted(
         reason: meta.reason,
         // Exhausted chain: primary connection (meta.tenantProviderId holds it here).
         tenantProviderId: meta.tenantProviderId,
+        providerKeyLabel: meta.provider_key_label,
         callerAttribution,
         requestHeaders,
         requestParams: meta.request_params,
@@ -364,6 +390,7 @@ function handleFallbackExhausted(
         // When a patched retry exists this row is that retry; otherwise it is
         // the plain original failure carrying only Phoenix's audit.
         autofix,
+        apiMode,
       },
     ),
     'primary failure',
@@ -371,15 +398,19 @@ function handleFallbackExhausted(
 
   logger.warn(`Fallback chain exhausted: ${errorBody.slice(0, 200)}`);
   const classified = classifyProviderError(errorStatus, errorBody);
+  const structured = parseStructuredProviderError(errorStatus, errorBody);
+  const providerCode = classified?.code ?? structured?.code;
   res.status(errorStatus);
   setHeaders(res, metaHeaders);
   res.setHeader('X-Manifest-Fallback-Exhausted', 'true');
   const responseBody = {
+    ...(apiMode === 'messages' ? { type: 'error' } : {}),
     error: buildOpenAiCompatibleError(errorStatus, errorBody, {
-      source: classified?.source ?? 'manifest',
-      code: classified?.code ?? 'fallback_exhausted',
+      source: classified?.source ?? (structured ? 'provider' : 'manifest'),
+      code: providerCode ?? 'fallback_exhausted',
       provider: meta.provider,
       model: meta.model,
+      apiMode,
       extra: {
         primary_model: meta.model,
         primary_provider: meta.provider,
@@ -456,6 +487,9 @@ export function recordFallbackFailures(
           meta.primaryTenantProviderId === undefined
             ? meta.tenantProviderId
             : meta.primaryTenantProviderId,
+        // meta.provider_key_label holds the winning fallback's label in this
+        // flow, so prefer the preserved primary label (mirrors the id above).
+        providerKeyLabel: meta.primaryKeyLabel ?? meta.provider_key_label,
         callerAttribution,
         requestHeaders,
         requestParams: meta.request_params,
@@ -479,6 +513,7 @@ export function recordFallbackFailures(
         baseTimeMs: fallbackBaseTime,
         markHandled: true,
         authType: primaryAuthType,
+        providerKeyLabel: meta.primaryKeyLabel ?? meta.provider_key_label,
         reason: meta.reason,
         callerAttribution,
         requestHeaders,
@@ -616,11 +651,13 @@ export async function handleStreamResponse(
     );
   }
   if (forward.isChatGpt) {
+    // Stateful: must be created once per stream and fed events in order.
+    const chatGptTransformer = providerClient.createChatGptStreamTransformer(meta.model);
     return pipeStream(
       forward.response.body!,
       res,
       (chunk) => {
-        const out = providerClient.convertChatGptStreamChunk(chunk, meta.model);
+        const out = chatGptTransformer(chunk);
         if (!messagesTransformer) return out;
         return out ? toClientChunk(out) : null;
       },
@@ -629,7 +666,11 @@ export async function handleStreamResponse(
       relayOptions,
     );
   }
-  const reasoningStreamFormat = getOpenAiReasoningStreamFormat(meta.provider, meta.model);
+  const reasoningStreamFormat = getOpenAiReasoningStreamFormat(
+    meta.provider,
+    meta.model,
+    reasoningCache?.modelCatalog,
+  );
   if (reasoningStreamFormat) {
     const onReasoningContent =
       reasoningCache && sessionKey
@@ -757,7 +798,7 @@ export async function handleNonStreamResponse(
     responseBody = providerClient.collectChatGptSseResponse(sseText, meta.model);
   } else {
     responseBody = await forward.response.json();
-    if (supportsReasoningContent(meta.provider, meta.model)) {
+    if (supportsReasoningContent(meta.provider, meta.model, reasoningCache?.modelCatalog)) {
       cacheReasoningContent(responseBody, reasoningCache, sessionKey);
     }
   }
@@ -834,6 +875,7 @@ export function recordSuccess(
   autofix?: AutofixRecord,
   requestId: string = uuid(),
   attemptNumber: number = currentPrimaryAttemptNumber(autofix),
+  apiMode?: ProxyApiMode,
 ): void {
   if (meta.fallbackFromModel && fallbackSuccessTs) {
     const requestDurationMs = startTime == null ? undefined : Date.now() - startTime;
@@ -860,6 +902,7 @@ export function recordSuccess(
         headerTierName: meta.header_tier_name,
         headerTierColor: meta.header_tier_color,
         autofix,
+        apiMode,
       }),
       'fallback success',
     );
@@ -886,13 +929,14 @@ export function recordSuccess(
         headerTierName: meta.header_tier_name,
         headerTierColor: meta.header_tier_color,
         autofix,
+        apiMode,
       }),
       'success message',
     );
   }
 
   // Fallback-success flows recorded the original and failed retry above in
-  // recordFallbackFailures. A direct Auto-fix success records its original here.
+  // recordFallbackFailures. A direct Autofix success records its original here.
   if (!meta.fallbackFromModel) {
     recordAutofixOriginalIfRetried(
       ctx,
