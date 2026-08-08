@@ -81,12 +81,8 @@ export class ApiKeyGeneratorService {
       // Only set when the caller made an explicit choice. Leaving them out lets
       // the column default / NULL-inherit path apply (Auto-fix mode default,
       // recording ON for new agents).
-      ...(params.autofixEnabled !== undefined
-        ? { autofix_enabled: params.autofixEnabled }
-        : {}),
-      ...(params.recordMessages !== undefined
-        ? { record_messages: params.recordMessages }
-        : {}),
+      ...(params.autofixEnabled !== undefined ? { autofix_enabled: params.autofixEnabled } : {}),
+      ...(params.recordMessages !== undefined ? { record_messages: params.recordMessages } : {}),
       is_active: true,
       tenant_id: tenantId,
     });

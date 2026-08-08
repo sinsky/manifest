@@ -230,7 +230,6 @@ describe('ApiKeyGeneratorService', () => {
       expect(inserted).not.toHaveProperty('record_messages');
     });
 
-
     it('should store encrypted key, key_hash and key_prefix', async () => {
       mockTenantFindOne.mockResolvedValue(null);
 

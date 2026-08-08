@@ -1,4 +1,11 @@
-import { createEffect, createResource, createSignal, onCleanup, Show, type Component } from 'solid-js';
+import {
+  createEffect,
+  createResource,
+  createSignal,
+  onCleanup,
+  Show,
+  type Component,
+} from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import AgentTypeSelect from './AgentTypeSelect.jsx';
 import { createAgent, getGlobalProviders } from '../services/api.js';
@@ -297,7 +304,6 @@ const AddAgentModal: Component<{ open: boolean; onClose: () => void }> = (props)
             </button>
           </div>
         </div>
-
       </div>
     </Show>
   );

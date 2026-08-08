@@ -84,12 +84,8 @@ const UserDiscoveryModal: Component<UserDiscoveryModalProps> = (props) => {
               </button>
             </div>
             <div class="user-discovery-modal__body">
-              <h2
-                id="user-discovery-modal-title"
-                class="user-discovery-modal__title"
-              >
-                Talk to us and get{' '}
-                <mark class="user-discovery-modal__highlight">$25</mark> credit
+              <h2 id="user-discovery-modal-title" class="user-discovery-modal__title">
+                Talk to us and get <mark class="user-discovery-modal__highlight">$25</mark> credit
                 for{' '}
                 <img
                   class="user-discovery-modal__title-logo"

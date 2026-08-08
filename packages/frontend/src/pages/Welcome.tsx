@@ -988,11 +988,19 @@ const Welcome: Component = () => {
                   <Show when={autofixEnabled()}>
                     <p class="autofix-consent__legal welcome__legal">
                       By enabling Auto-fix, you agree to Manifest&apos;s{' '}
-                      <a href="https://manifest.build/terms" target="_blank" rel="noopener noreferrer">
+                      <a
+                        href="https://manifest.build/terms"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
                         Terms
                       </a>{' '}
                       and{' '}
-                      <a href="https://manifest.build/privacy" target="_blank" rel="noopener noreferrer">
+                      <a
+                        href="https://manifest.build/privacy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
                         Privacy Policy
                       </a>
                       .
