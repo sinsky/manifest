@@ -54,7 +54,7 @@ import type { AttemptRecordingCapture } from './attempt-recording-capture';
 
 const logger = new Logger('ProxyResponseHandler');
 
-/** The current primary is attempt 2 only when Auto-fix actually sent a retry. */
+/** The current primary is attempt 2 only when Autofix actually sent a retry. */
 export function currentPrimaryAttemptNumber(autofix: AutofixRecord | undefined): number {
   return getAutofixRetry(autofix) ? 2 : 1;
 }
@@ -792,10 +792,28 @@ export async function handleNonStreamResponse(
     }
     delete (responseBody as Record<string, unknown>)._extractedThinkingBlocks;
   } else if (forward.isChatGpt) {
-    // The Codex Responses API always returns SSE even when stream: false.
-    // Consume the SSE text and build a non-streaming response.
-    const sseText = await forward.response.text();
-    responseBody = providerClient.collectChatGptSseResponse(sseText, meta.model);
+    // Responses-format upstreams differ on their non-streaming shape. The
+    // ChatGPT Codex subscription backend always returns SSE even when
+    // stream:false, but the Bedrock mantle /openai/v1/responses endpoint (and
+    // other API-key /responses backends) return a plain JSON Responses object.
+    // Sniff the shape — same triple-signal check as readNativeResponsesBody —
+    // and convert accordingly. Assuming SSE unconditionally made non-streaming
+    // Bedrock GPT-5.x responses come back empty (content: null, zero usage).
+    const contentType = forward.response.headers.get('content-type') ?? '';
+    const text = await forward.response.text();
+    const trimmed = text.trimStart();
+    if (
+      contentType.includes('text/event-stream') ||
+      trimmed.startsWith('event:') ||
+      trimmed.startsWith('data:')
+    ) {
+      responseBody = providerClient.collectChatGptSseResponse(text, meta.model);
+    } else {
+      responseBody = providerClient.convertChatGptResponse(
+        JSON.parse(text) as Record<string, unknown>,
+        meta.model,
+      );
+    }
   } else {
     responseBody = await forward.response.json();
     if (supportsReasoningContent(meta.provider, meta.model, reasoningCache?.modelCatalog)) {
@@ -936,7 +954,7 @@ export function recordSuccess(
   }
 
   // Fallback-success flows recorded the original and failed retry above in
-  // recordFallbackFailures. A direct Auto-fix success records its original here.
+  // recordFallbackFailures. A direct Autofix success records its original here.
   if (!meta.fallbackFromModel) {
     recordAutofixOriginalIfRetried(
       ctx,

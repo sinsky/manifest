@@ -896,7 +896,7 @@ describe('proxy-response-handler', () => {
       expect(recorder.recordFailedFallbacks).toHaveBeenCalled();
     });
 
-    it('numbers an Auto-fix retry before its fallback attempts', () => {
+    it('numbers an Autofix retry before its fallback attempts', () => {
       const recorder = mockRecorder();
       const meta = makeMeta({ fallbackFromModel: 'gpt-4o' });
       const failedFallbacks: FailedFallback[] = [
@@ -964,7 +964,7 @@ describe('proxy-response-handler', () => {
       expect(recorder.recordAutofixOriginal).not.toHaveBeenCalled();
     });
 
-    it('records the original and failed Auto-fix retry before a successful fallback', () => {
+    it('records the original and failed Autofix retry before a successful fallback', () => {
       const recorder = mockRecorder();
       const meta = makeMeta({
         fallbackFromModel: 'gpt-4o',
@@ -1002,7 +1002,7 @@ describe('proxy-response-handler', () => {
       );
     });
 
-    it('attributes the Auto-fix original row to the primary connection label', () => {
+    it('attributes the Autofix original row to the primary connection label', () => {
       // The retry that failed ran on the PRIMARY connection; meta.provider_key_label
       // already names the fallback that recovered the request, so the
       // autofix_role='original' row must read primaryKeyLabel instead —
@@ -1036,7 +1036,7 @@ describe('proxy-response-handler', () => {
       );
     });
 
-    it('does not attribute the Auto-fix original to the fallback provider', () => {
+    it('does not attribute the Autofix original to the fallback provider', () => {
       const recorder = mockRecorder();
       const meta = makeMeta({
         fallbackFromModel: 'gpt-4o',
@@ -2051,12 +2051,59 @@ describe('proxy-response-handler', () => {
       const client = mockProviderClient();
       const sseText = 'event: response.output_text.delta\ndata: {"delta":"Hi"}\n\n';
       const forward = mockForward(sseText, { isChatGpt: true });
+      forward.response.headers.get.mockReturnValue(null);
       const meta = makeMeta();
 
       await handleNonStreamResponse(res as any, forward as any, meta, {}, client as any);
 
       expect(client.collectChatGptSseResponse).toHaveBeenCalledWith(sseText, meta.model);
       expect(forward.response.text).toHaveBeenCalled();
+    });
+
+    it('should convert a JSON Responses object via providerClient for non-streaming ChatGPT-format upstreams (Bedrock GPT-5.x)', async () => {
+      // Regression for the Bedrock non-streaming bug: bedrock-mantle
+      // /openai/v1/responses returns a plain JSON Responses object (not SSE)
+      // when stream:false. The handler must route it through the DI-mockable
+      // providerClient.convertChatGptResponse, not the SSE collector — otherwise
+      // the SSE collector finds no events and content comes back null.
+      const { res } = mockResponse();
+      const client = mockProviderClient();
+      const responsesJson = {
+        object: 'response',
+        output: [
+          {
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'output_text', text: 'ok' }],
+          },
+        ],
+        usage: { input_tokens: 11, output_tokens: 5, total_tokens: 16 },
+      };
+      const forward = mockForward(responsesJson, { isChatGpt: true });
+      const meta = makeMeta();
+
+      await handleNonStreamResponse(res as any, forward as any, meta, {}, client as any);
+
+      // The JSON body goes through the converter, NOT the SSE collector.
+      expect(client.collectChatGptSseResponse).not.toHaveBeenCalled();
+      expect(client.convertChatGptResponse).toHaveBeenCalledWith(responsesJson, meta.model);
+      expect(res.json).toHaveBeenCalledWith({ id: 'chatgpt-converted' });
+    });
+
+    it('should still collect SSE when a ChatGPT-format upstream streams with text/event-stream content-type', async () => {
+      // Regression guard: the Codex subscription backend always returns SSE.
+      const { res } = mockResponse();
+      const client = mockProviderClient();
+      const sseText = 'event: response.output_text.delta\ndata: {"delta":"Hi"}\n\n';
+      const forward = mockForward(sseText, {
+        isChatGpt: true,
+        contentType: 'text/event-stream',
+      });
+      const meta = makeMeta();
+
+      await handleNonStreamResponse(res as any, forward as any, meta, {}, client as any);
+
+      expect(client.collectChatGptSseResponse).toHaveBeenCalledWith(sseText, meta.model);
     });
 
     it('should pass through standard OpenAI response', async () => {
@@ -2784,7 +2831,7 @@ describe('proxy-response-handler', () => {
       );
     });
 
-    // A healed Auto-fix chain: the failed original attempt is recorded as its
+    // A healed Autofix chain: the failed original attempt is recorded as its
     // own auto_fixed row, linked to the successful-retry success row above.
     const healedAutofix: AutofixRecord = {
       groupId: 'grp-1',
@@ -2802,7 +2849,7 @@ describe('proxy-response-handler', () => {
       ],
     };
 
-    it('records the failed Auto-fix original(s) when the chain has a failed entry (healed)', () => {
+    it('records the failed Autofix original(s) when the chain has a failed entry (healed)', () => {
       const recorder = mockRecorder();
       const meta = makeMeta();
       const usage: StreamUsage = { prompt_tokens: 100, completion_tokens: 50 };
@@ -2859,10 +2906,10 @@ describe('proxy-response-handler', () => {
 
     it('does NOT record a separate auto_fixed original when healing EXHAUSTED but a fallback then succeeded', () => {
       // Fallback-success path: meta.fallbackFromModel is set (so the
-      // recordFallbackSuccess branch runs) and the Auto-fix chain carries a
+      // recordFallbackSuccess branch runs) and the Autofix chain carries a
       // failed attempt — but healing did NOT heal. The failed primary is
       // already recorded exactly once as the `fallback_error` row (stamped with
-      // the Auto-fix audit by recordFallbackFailures), so emitting an
+      // the Autofix audit by recordFallbackFailures), so emitting an
       // `auto_fixed` row here too would double-count it under the fallback model.
       const recorder = mockRecorder();
       const meta = makeMeta({ fallbackFromModel: 'claude-opus', fallbackIndex: 0 });
@@ -2902,8 +2949,8 @@ describe('proxy-response-handler', () => {
       expect(recorder.recordAutofixOriginal).not.toHaveBeenCalled();
     });
 
-    it('does not record Auto-fix originals when healing did not heal (outcome !== healed)', () => {
-      // An Auto-fix record that did not heal must not trigger
+    it('does not record Autofix originals when healing did not heal (outcome !== healed)', () => {
+      // An Autofix record that did not heal must not trigger
       // recordAutofixOriginal — the guard is the presence of a real retry.
       const recorder = mockRecorder();
       const meta = makeMeta();
@@ -2931,7 +2978,7 @@ describe('proxy-response-handler', () => {
       expect(recorder.recordAutofixOriginal).not.toHaveBeenCalled();
     });
 
-    it('does not record Auto-fix originals when autofix is absent', () => {
+    it('does not record Autofix originals when autofix is absent', () => {
       // Guards the `autofix && …` short-circuit: no autofix record at all.
       const recorder = mockRecorder();
       const meta = makeMeta();

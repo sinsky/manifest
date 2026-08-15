@@ -203,7 +203,7 @@ describe('ApiKeyGeneratorService', () => {
         }),
       );
     });
-    it('writes explicit Auto-fix and recording choices when provided', async () => {
+    it('writes explicit Autofix and recording choices when provided', async () => {
       mockTenantFindOne.mockResolvedValue(null);
 
       await service.onboardAgent({
@@ -220,7 +220,7 @@ describe('ApiKeyGeneratorService', () => {
       );
     });
 
-    it('omits Auto-fix and recording when the caller made no choice', async () => {
+    it('omits Autofix and recording when the caller made no choice', async () => {
       mockTenantFindOne.mockResolvedValue(null);
 
       await service.onboardAgent(defaultParams);

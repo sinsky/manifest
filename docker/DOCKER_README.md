@@ -283,9 +283,9 @@ If the dashboard loads as a **blank page on a LAN IP on an older image**, pull t
 
 Every release is published with the following tags:
 
-- `{major}.{minor}.{patch}` - fully pinned (e.g. `5.46.0`)
-- `{major}.{minor}` - latest patch within a minor (e.g. `5.46`)
-- `{major}` - latest minor+patch within a major (e.g. `5`)
+- `{major}.{minor}.{patch}` - fully pinned (e.g. `6.18.0`)
+- `{major}.{minor}` - latest patch within a minor (e.g. `6.18`)
+- `{major}` - latest minor+patch within a major (e.g. `6`)
 - `latest` - latest stable release
 - `sha-<short>` - exact commit for rollback
 
@@ -300,11 +300,11 @@ docker compose pull
 docker compose up -d
 ```
 
-Database migrations run automatically on boot, no manual steps. Your data in the `pgdata` volume is preserved across upgrades. Pin to a specific major version (e.g. `manifestdotbuild/manifest:5`) in `docker-compose.yml` if you want control over when major upgrades happen.
+Database migrations run automatically on boot, no manual steps. Your data in the `pgdata` volume is preserved across upgrades. Pin to a specific major version (e.g. `manifestdotbuild/manifest:6`) in `docker-compose.yml` if you want control over when major upgrades happen.
 
 ## Backup & persistence
 
-All state lives in the `pgdata` named volume mounted at `/var/lib/postgresql/data` in the `postgres` service. Nothing else in the Manifest container is stateful.
+PostgreSQL state lives in the `mnfst_pgdata` named volume mounted at `/var/lib/postgresql/data` in the `postgres` service. The Compose install also stores local request recordings in the `mnfst_recordings` volume mounted at `/data/request-recordings`; those recordings are not included in a PostgreSQL dump. For ephemeral hosts or multiple instances, configure durable S3-compatible storage instead.
 
 **Back up** (from the host, with the stack running):
 
@@ -323,7 +323,7 @@ docker compose up -d
 To list / remove the volume manually:
 
 ```bash
-docker volume ls | grep pgdata
+docker volume ls | grep -E 'mnfst_(pgdata|recordings)'
 docker compose down -v    # ⚠  destroys all data
 ```
 
@@ -403,11 +403,11 @@ sets this automatically).
 | `MANIFEST_MODE`                    | No          | auto (Docker → selfhosted)                   | `selfhosted` or `cloud`. `local` is a legacy alias. Self-hosted mode allows private/http URLs for custom providers.                                                                                        |
 | `MANIFEST_DISABLE_HSTS`            | No          | unset                                        | Set `1` to silence the boot warning about serving over plain HTTP on a LAN                                                                                                                                 |
 | `THROTTLE_LIMIT` / `THROTTLE_TTL`  | No          | `100` / `60000`                              | Rate limit: requests per window, window in ms                                                                                                                                                              |
-| `DB_POOL_MAX` / `AUTH_DB_POOL_MAX` | No          | `30` / `10`                                  | PostgreSQL pool sizes (app pool, Better Auth pool)                                                                                                                                                         |
+| `DB_POOL_MAX` / `AUTH_DB_POOL_MAX` | No          | `10` / `5`                                   | PostgreSQL pool sizes (app pool, Better Auth pool)                                                                                                                                                         |
 | `SENTRY_DSN`                       | No          | unset                                        | Opt-in error monitoring. Sentry is not initialised unless set                                                                                                                                              |
 | `MANIFEST_TELEMETRY_DISABLED`      | No          | `0`                                          | Set `1` to disable anonymous usage telemetry                                                                                                                                                               |
 | `TELEMETRY_ENDPOINT`               | No          | `https://telemetry.manifest.build/v1/report` | Send the usage report to your own collector instead                                                                                                                                                        |
-| `AUTOFIX_GLOBAL_ENABLED`           | No          | `true`                                       | Deployment-wide Autofix kill switch. Set `false` to make no calls to the Autofix service at all, boot health check included                                                                                 |
+| `AUTOFIX_GLOBAL_ENABLED`           | No          | `true`                                       | Deployment-wide Autofix kill switch. Set `false` to make no calls to the Autofix service at all, boot health check included                                                                                |
 
 `NODE_ENV` and `SEED_DATA` are deliberately fixed by the compose file and are
 not knobs here: the image is a production artifact, and the demo-data seeder

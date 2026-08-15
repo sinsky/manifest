@@ -434,7 +434,7 @@ describe('ProxyService — orchestration', () => {
       );
     });
 
-    it('reports the captured provider body and provider-facing API mode to Auto-fix', async () => {
+    it('reports the captured provider body and provider-facing API mode to Autofix', async () => {
       routableResolve();
       const wireBody = {
         model: 'claude-opus-4-8',
@@ -453,7 +453,7 @@ describe('ProxyService — orchestration', () => {
       expect(autofixService.maybeHeal.mock.calls[0][0]).not.toHaveProperty('resolvedModel');
     });
 
-    it('sends native Gemini failures to Auto-fix with the exact provider body', async () => {
+    it('sends native Gemini failures to Autofix with the exact provider body', async () => {
       resolveService.resolve.mockResolvedValue({
         tier: 'standard',
         route: route('gemini', 'api_key', 'gemini-2.5-flash'),
@@ -661,7 +661,7 @@ describe('ProxyService — orchestration', () => {
 
       expect(result.response.status).toBe(502);
       expect(fallbackService.retryWireBody).not.toHaveBeenCalled();
-      expect(await result.response.text()).toContain('Auto-fix');
+      expect(await result.response.text()).toContain('Autofix');
     });
 
     it('uses the original model when a pinned healed retry omits the model', async () => {
@@ -1451,7 +1451,7 @@ describe('ProxyService — orchestration', () => {
       expect(autofixService.maybeHeal).not.toHaveBeenCalled();
     });
 
-    it('sends the real provider model-not-found response to Auto-fix', async () => {
+    it('sends the real provider model-not-found response to Autofix', async () => {
       providerKeyService.hasRouteCredentials.mockImplementation(
         async (_tenantId, candidate) =>
           candidate.provider === 'openai' && candidate.authType === 'api_key',
