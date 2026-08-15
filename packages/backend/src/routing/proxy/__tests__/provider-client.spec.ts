@@ -437,19 +437,25 @@ describe('ProviderClient', () => {
       expect(result.isGoogle).toBe(false);
     });
 
-    it('routes Bedrock OpenAI models through the Responses API', async () => {
+    it.each([
+      'openai.gpt-5.4',
+      'openai.gpt-5.5',
+      'openai.gpt-5.6-sol',
+      'openai.gpt-5.6-terra',
+      'openai.gpt-5.6-luna',
+    ])('routes Bedrock %s through the namespaced Responses API', async (model) => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
       const result = await client.forward({
         provider: 'bedrock',
         apiKey: 'bedrock-api-key-test',
-        model: 'openai.gpt-5.6-luna',
+        model,
         body: { ...body, max_tokens: 1024 },
         stream: false,
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://bedrock-mantle.us-east-1.api.aws/v1/responses',
+        'https://bedrock-mantle.us-east-1.api.aws/openai/v1/responses',
         expect.objectContaining({
           method: 'POST',
           headers: {
@@ -460,7 +466,7 @@ describe('ProviderClient', () => {
       );
 
       const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(sentBody.model).toBe('openai.gpt-5.6-luna');
+      expect(sentBody.model).toBe(model);
       expect(sentBody.input).toEqual([
         { role: 'user', content: [{ type: 'input_text', text: 'Hello' }] },
       ]);
@@ -481,13 +487,13 @@ describe('ProviderClient', () => {
         body: { ...body, max_tokens: 1024 },
         stream: false,
         customEndpoint: buildEndpointOverride(
-          'https://bedrock-mantle.eu-west-1.api.aws',
+          'https://bedrock-mantle.us-west-2.api.aws',
           'bedrock-responses',
         ),
       });
 
       expect(mockFetch.mock.calls[0][0]).toBe(
-        'https://bedrock-mantle.eu-west-1.api.aws/v1/responses',
+        'https://bedrock-mantle.us-west-2.api.aws/openai/v1/responses',
       );
       const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
       expect(sentBody.max_output_tokens).toBe(1024);
@@ -1599,6 +1605,22 @@ describe('ProviderClient', () => {
       expect(sentBody.store).toBe(false);
     });
 
+    it('forces upstream streaming when the caller sends stream:false (#2706)', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      await client.forward({
+        provider: 'openai',
+        apiKey: 'oauth-token',
+        model: 'gpt-5.6-sol',
+        body: { ...body, stream: false },
+        stream: false,
+        authType: 'subscription',
+      });
+
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(sentBody.stream).toBe(true);
+    });
+
     it('sends default instructions when no system or developer prompt is present', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
@@ -2262,6 +2284,24 @@ describe('ProviderClient', () => {
       expect(sentBody.stream).toBeUndefined();
       expect(sentBody.system).toBeUndefined();
       expect(result.isAnthropic).toBe(true);
+    });
+
+    it('maps max_completion_tokens to the Kimi Code Anthropic wire field', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      await client.forward({
+        provider: 'moonshot',
+        apiKey: 'kimi-code-key',
+        model: 'k3',
+        body: { ...body, max_completion_tokens: 123 },
+        stream: false,
+        authType: 'subscription',
+      });
+
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(sentBody.model).toBe('k3');
+      expect(sentBody.max_tokens).toBe(123);
+      expect(sentBody.max_completion_tokens).toBeUndefined();
     });
 
     it('keeps standard Moonshot API-key auth on the Moonshot OpenAI endpoint', async () => {
