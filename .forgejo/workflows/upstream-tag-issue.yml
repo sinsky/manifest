@@ -132,8 +132,8 @@ jobs:
                 "- [ ] `upstream/main` とタグの内容を確認する",
                 "- [ ] `main` にupstreamの変更を取り込む",
                 "- [ ] 競合を解消し、`npm run build` と `npm test` を実行する",
-                "- [ ] 必要なカスタムブランチへ変更を反映する",
-                "- [ ] 更新したブランチをoriginへpushする",
+                "- [ ] `custom/next` にupstreamの変更を取り込み、originへpushする",
+                "- [ ] `release-version.yml` をdispatchしてリリースを実行する",
                 "",
                 "このIssueはForgejo Actionsによって自動作成されました。",
               ].join("\n");
