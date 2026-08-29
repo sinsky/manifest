@@ -144,7 +144,7 @@ describe('ProxyController', () => {
   let mockPricingCache: { getByModel: jest.Mock };
   let modelDiscovery: { getModelsForAgent: jest.Mock };
   let providerParamSpecs: { getCapabilities: jest.Mock };
-  let modelsDevSync: { lookupModel: jest.Mock };
+  let modelsDevSync: { lookupModel: jest.Mock; lookupModelCapabilities: jest.Mock };
   let headerTierService: { list: jest.Mock };
   let recorder: ProxyMessageRecorder;
   let planService: { assertWithinRequestLimit: jest.Mock };
@@ -189,7 +189,10 @@ describe('ProxyController', () => {
       getModelsForAgent: jest.fn().mockResolvedValue([]),
     };
     providerParamSpecs = { getCapabilities: jest.fn().mockResolvedValue(null) };
-    modelsDevSync = { lookupModel: jest.fn().mockReturnValue(null) };
+    modelsDevSync = {
+      lookupModel: jest.fn().mockReturnValue(null),
+      lookupModelCapabilities: jest.fn().mockReturnValue(null),
+    };
     headerTierService = { list: jest.fn().mockResolvedValue([]) };
     observationReporter = { report: jest.fn() };
     recordingCache = { isRecording: jest.fn().mockResolvedValue(false) };
@@ -556,7 +559,7 @@ describe('ProxyController', () => {
       makeDiscoveredModel({ id: 'gpt-4o', provider: 'openai' }),
     ]);
     providerParamSpecs.getCapabilities.mockResolvedValue(['tools']);
-    modelsDevSync.lookupModel.mockReturnValue({
+    modelsDevSync.lookupModelCapabilities.mockReturnValue({
       id: 'gpt-4o',
       name: 'GPT-4o',
       inputPricePerToken: null,
@@ -584,7 +587,7 @@ describe('ProxyController', () => {
       ],
     });
     expect(providerParamSpecs.getCapabilities).toHaveBeenCalledWith('openai', 'api_key', 'gpt-4o');
-    expect(modelsDevSync.lookupModel).toHaveBeenCalledWith('openai', 'gpt-4o');
+    expect(modelsDevSync.lookupModelCapabilities).toHaveBeenCalledWith('openai', 'gpt-4o');
   });
 
   it('should expose capabilities and cost when both query parameters are true', async () => {
