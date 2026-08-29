@@ -1200,12 +1200,13 @@ describe('tool-call id sanitation on /v1/messages responses', () => {
 
   it('createMessagesStreamTransformer sanitizes the streamed tool_use id', () => {
     const t = createMessagesStreamTransformer('kimi-k3');
-    const out = [
-      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"Edit:0","function":{"name":"Edit","arguments":""}}]}}]}\n\n',
-      'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n\n',
-    ]
-      .map((c) => t.transform(c) ?? '')
-      .join('') + (t.finalize() ?? '');
+    const out =
+      [
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"Edit:0","function":{"name":"Edit","arguments":""}}]}}]}\n\n',
+        'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n\n',
+      ]
+        .map((c) => t.transform(c) ?? '')
+        .join('') + (t.finalize() ?? '');
     const start = out
       .split('\n\n')
       .find((b) => b.startsWith('event: content_block_start') && b.includes('tool_use'))!;
@@ -1222,7 +1223,9 @@ describe('empty upstream tool_call ids', () => {
           {
             message: {
               content: '',
-              tool_calls: [{ id: '', type: 'function', function: { name: 'Read', arguments: '{}' } }],
+              tool_calls: [
+                { id: '', type: 'function', function: { name: 'Read', arguments: '{}' } },
+              ],
             },
             finish_reason: 'tool_calls',
           },
