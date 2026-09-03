@@ -1,4 +1,4 @@
-import { HttpException } from '@nestjs/common';
+import { HttpException, Logger } from '@nestjs/common';
 import { FREE_PLAN_REQUESTS_PER_MONTH } from 'manifest-shared';
 import { ManifestError } from '../../../common/errors/manifest-error';
 import { ProxyController } from '../proxy.controller';
@@ -149,7 +149,7 @@ describe('ProxyController', () => {
   let recorder: ProxyMessageRecorder;
   let planService: { assertWithinRequestLimit: jest.Mock };
   let observationReporter: { report: jest.Mock };
-  let recordingCache: { isRecording: jest.Mock };
+  let recordingConfig: { isRecording: jest.Mock };
   let attemptRecording: { available: boolean; save: jest.Mock };
 
   beforeEach(() => {
@@ -195,7 +195,7 @@ describe('ProxyController', () => {
     };
     headerTierService = { list: jest.fn().mockResolvedValue([]) };
     observationReporter = { report: jest.fn() };
-    recordingCache = { isRecording: jest.fn().mockResolvedValue(false) };
+    recordingConfig = { isRecording: jest.fn().mockResolvedValue(false) };
     attemptRecording = {
       available: true,
       save: jest.fn().mockResolvedValue(undefined),
@@ -234,7 +234,7 @@ describe('ProxyController', () => {
       providerParamSpecs as never,
       modelsDevSync as never,
       headerTierService as never,
-      recordingCache as never,
+      recordingConfig as never,
       attemptRecording as never,
     );
   });
@@ -402,6 +402,33 @@ describe('ProxyController', () => {
     // discovered-models loop then finds `openai/gpt-4o` already in `seen` and
     // skips it, leaving exactly these three ids.
     expect(ids).toEqual(['auto', 'openai/gpt-4o', 'free']);
+  });
+
+  it('should expose provider-native route metadata when requested', async () => {
+    modelDiscovery.getModelsForAgent.mockResolvedValue([
+      makeDiscoveredModel({
+        id: 'opencode-go/glm-5.1',
+        provider: 'opencode-go',
+        authType: 'subscription',
+      }),
+    ]);
+
+    await expect(
+      controller.models(mockRequest({}) as never, undefined, undefined, 'true'),
+    ).resolves.toEqual({
+      object: 'list',
+      data: [
+        { id: 'auto', object: 'model', created: 0, owned_by: 'manifest' },
+        {
+          id: 'opencode-go/glm-5.1-subscription',
+          object: 'model',
+          created: 0,
+          owned_by: 'opencode-go',
+          provider_model_id: 'opencode-go/glm-5.1',
+          auth_type: 'subscription',
+        },
+      ],
+    });
   });
 
   it('should expose capability metadata when ?capabilities=true, preserving subscription ids', async () => {
@@ -660,6 +687,44 @@ describe('ProxyController', () => {
     expect(headers['X-Manifest-Reason']).toBe('scored');
   });
 
+  it('routes a native Phoenix replay through the requested subscription connection', async () => {
+    const responseBody = { choices: [{ message: { content: 'hello' } }] };
+    proxyService.proxyRequest.mockResolvedValue({
+      forward: {
+        response: new Response(JSON.stringify(responseBody), { status: 200 }),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      },
+      meta: {
+        tier: 'direct',
+        model: 'gpt-5.5',
+        provider: 'openai',
+        auth_type: 'subscription',
+        confidence: 1,
+        reason: 'direct',
+      },
+    });
+    const body = { model: 'gpt-5.5', messages: [{ role: 'user', content: 'hi' }] };
+    const req = mockRequest(body, 'user-1', {
+      'x-manifest-provider': 'openai',
+      'x-manifest-auth-type': 'subscription',
+    });
+    const { res } = mockResponse();
+
+    await controller.chatCompletions(req as never, res as never);
+
+    expect(proxyService.proxyRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body,
+        routingBody: {
+          model: 'openai/gpt-5.5-subscription',
+          messages: [{ role: 'user', content: 'hi' }],
+        },
+      }),
+    );
+  });
+
   it.each([
     ['chatCompletions', 'chat_completions', { messages: [{ role: 'user', content: 'hi' }] }],
     ['responses', 'responses', { input: 'hi' }],
@@ -693,7 +758,7 @@ describe('ProxyController', () => {
   );
 
   it('records the exact provider request and response on its Provider Attempt', async () => {
-    recordingCache.isRecording.mockResolvedValue(true);
+    recordingConfig.isRecording.mockResolvedValue(true);
     const responseBody = {
       choices: [{ message: { role: 'assistant', content: 'recorded reply' } }],
     };
@@ -739,7 +804,7 @@ describe('ProxyController', () => {
 
     await controller.chatCompletions(mockRequest(callerBody) as never, res as never);
 
-    expect(recordingCache.isRecording).toHaveBeenCalledWith('agent-1');
+    expect(recordingConfig.isRecording).toHaveBeenCalledWith('agent-1');
     expect(attemptRecording.save).toHaveBeenCalledWith(
       'tenant-1',
       expect.any(String),
@@ -816,7 +881,7 @@ describe('ProxyController', () => {
   });
 
   it('keeps Autofix original and retry payloads on separate Provider Attempts', async () => {
-    recordingCache.isRecording.mockResolvedValue(true);
+    recordingConfig.isRecording.mockResolvedValue(true);
     const originalBody = { model: 'gpt-4o', messages: [], unsupported: true };
     const retryBody = { model: 'gpt-4o', messages: [] };
     const originalResponse = { error: { message: 'unsupported parameter' } };
@@ -892,7 +957,7 @@ describe('ProxyController', () => {
   });
 
   it('keeps routing when the recording config lookup fails', async () => {
-    recordingCache.isRecording.mockRejectedValueOnce(new Error('recording unavailable'));
+    recordingConfig.isRecording.mockRejectedValueOnce(new Error('recording unavailable'));
     proxyService.proxyRequest.mockRejectedValueOnce(new HttpException('Too many requests', 429));
     const { res } = mockResponse();
 
@@ -903,7 +968,7 @@ describe('ProxyController', () => {
   });
 
   it('keeps serving a captured response when saving its recording fails', async () => {
-    recordingCache.isRecording.mockResolvedValue(true);
+    recordingConfig.isRecording.mockResolvedValue(true);
     attemptRecording.save.mockRejectedValueOnce(new Error('recording unavailable'));
     const responseBody = { choices: [{ message: { content: 'still served' } }] };
     proxyService.proxyRequest.mockImplementation(
@@ -1935,6 +2000,28 @@ describe('ProxyController', () => {
         source: 'provider',
       }),
     });
+  });
+
+  it('scrubs provider credentials out of the logged Responses SSE failure', async () => {
+    // A ChatGPT-family SSE failure carries the raw upstream body, which on a
+    // 401 can contain the caller's own key.
+    const key = 'sk-ant-api03-AAAABBBBCCCCDDDDEEEEFFFF';
+    const leaky = JSON.stringify({
+      error: { message: `invalid x-api-key: ${key}`, type: 'authentication_error' },
+    });
+    proxyService.proxyRequest.mockRejectedValue(new ResponsesSseError(leaky, 401, leaky));
+    const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+
+    const req = mockRequest({ messages: [{ role: 'user', content: 'test' }] });
+    const { res } = mockResponse();
+
+    await controller.chatCompletions(req as never, res as never);
+
+    const logged = errorSpy.mock.calls.map((call) => String(call[0])).join('\n');
+    errorSpy.mockRestore();
+    expect(logged).toContain('Proxy error:');
+    expect(logged).toContain('[REDACTED]');
+    expect(logged).not.toContain(key);
   });
 
   it('should forward HttpException as friendly chat message', async () => {

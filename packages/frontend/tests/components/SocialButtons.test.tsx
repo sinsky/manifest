@@ -151,4 +151,14 @@ describe('SocialButtons', () => {
     const oidcBtn = container.querySelector('.auth-social-btn--oidc')!;
     expect(oidcBtn.querySelector('.auth-last-used')).not.toBeNull();
   });
+
+  it('accepts a signup-specific callback override', async () => {
+    render(() => <SocialButtons callbackURL="/discovery?next=%2Fwelcome&signup=1" />);
+    await fireEvent.click(screen.getByText('Continue with GitHub'));
+    expect(mockSignInSocial).toHaveBeenCalledWith({
+      provider: 'github',
+      callbackURL: '/discovery?next=%2Fwelcome&signup=1',
+      errorCallbackURL: '/login?error=oauth_failed',
+    });
+  });
 });

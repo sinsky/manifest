@@ -1107,7 +1107,7 @@ describe('ResolveService', () => {
       tierService.getTiers.mockResolvedValue([
         {
           tier: 'simple',
-          override_route: route('custom:local', 'api_key', 'local-model'),
+          override_route: route('openai', 'api_key', 'gpt-image-1'),
           auto_assigned_route: null,
           fallback_routes: [
             route('openai', 'api_key', 'gpt-4o'),
@@ -1129,7 +1129,7 @@ describe('ResolveService', () => {
           tier: 'simple',
           override_route: route('openai', 'api_key', 'gpt-4o'),
           auto_assigned_route: null,
-          fallback_routes: [route('custom:local', 'api_key', 'local-model')],
+          fallback_routes: [route('openai', 'api_key', 'gpt-image-1')],
           response_mode: 'stream',
         } as TierAssignment,
       ]);
