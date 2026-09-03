@@ -1,5 +1,61 @@
 # manifest
 
+## 6.21.1
+
+### Patch Changes
+
+- b974b60: Send the `x-opencode-session` header on every OpenCode Go/Zen request — hashed per-conversation id when the caller provides `x-session-key`, stable per-agent fallback otherwise — ahead of OpenCode's 09/06 enforcement deadline.
+- 30ecba8: Stop listing OpenRouter `:batch` model variants in model discovery. These variants are only served through OpenRouter's asynchronous Batch API and always fail with a 404 on the synchronous chat completions proxy.
+- 51fa1b8: Security: bump fast-uri to 3.1.6 (fixes GHSA-5jgf-p345-68v8, GHSA-fph4-wmhf-6fwf, GHSA-f65p-4m7j-42xc, GHSA-jqff-g426-hqxp) and refresh Docker base images.
+
+## 6.21.0
+
+### Minor Changes
+
+- ae39136: Encrypt stored request recordings with the at-rest encryption key. Existing gzip-only recordings remain readable.
+- 760e21c: Add MANIFEST_ENCRYPTION_KEY_PREVIOUS and a boot-time re-encryption pass so the at-rest key can be introduced or rotated without losing stored provider credentials.
+
+### Patch Changes
+
+- 6b88368: Route an explicit bare model id to the subscription connection when both a subscription and an api_key connection of the same provider serve it, instead of silently metering the key.
+- 39fdbe0: Add claude-fable-5-1 to the Anthropic subscription model catalog so Claude Max / Pro connections can serve it instead of silently falling through to an API key
+- 478c64b: Strip inline base64 images from stored request recordings and Phoenix observations.
+- 15998da: Remove the self-hosted loopback auto-login. Requests from 127.0.0.1 without a session are no longer treated as a signed-in local user.
+- 686656a: The routing model picker now window-renders long catalogs so scrolling stays in place instead of lagging or jumping back to the top.
+- 9534911: Scrub provider credentials from upstream error bodies before they are written to logs.
+- 65e318b: Waiting-list claims now record where they were made (cloud or self-hosted) instead of a generic label, and a repeat claim updates the attribution to the latest origin.
+
+## 6.20.0
+
+### Minor Changes
+
+- b7d5368: New self-hosted users now see a one-time optional discovery form (name, email, project type, company size) right after signup, before reaching the dashboard. Submitting or skipping persists the choice, and the step never appears on Manifest Cloud or for existing users.
+- 54a6356: The sidebar now announces that Manifest is becoming the self-healing layer for APIs, with a modal to join the waiting list using a prefilled but editable email. The old Autofix sidebar card is retired since notifications cover it.
+- b3bd178: Add grok-4.6 to the Grok subscription known-models list so xAI subscription connections can select it.
+- 1f6e851: Limit the Grok subscription catalog to grok-4.6 and grok-4.5, the models Grok Build actually offers, and advertise their 500k context window.
+
+### Patch Changes
+
+- 4de42c1: Open Anthropic subscription popups before the OAuth request so adding another account is not blocked by the browser.
+- 597d183: Allow custom provider models to use streaming response mode.
+- 4b824d7: Stop serializing tool_result images as base64 text on OpenAI-compatible routes (a single screenshot inflated to 100K+ input tokens and could overflow the provider context window), and return deterministic ChatGPT Codex context errors as HTTP 400 instead of 502.
+- e0105a2: Keep configured subscription context windows current without replacing provider values.
+- 5cd26a1: Fix fallback drag-and-drop reordering below the second position.
+- 3c5af56: Allow deployments to configure the per-tenant concurrent request limit with `MANIFEST_CONCURRENCY_MAX`.
+- 29f0316: Keep Phoenix model remaps provider-native while preserving subscription routing and legacy Autofix compatibility.
+- eb0992c: Pin Better Auth to 1.6.25 to restore upgrades from populated 1.6 databases.
+- c86273b: Translate Anthropic user metadata when routing Messages requests to OpenAI.
+
+## 6.19.1
+
+### Patch Changes
+
+- 196f3b9: Stop accepting rotated or deleted agent API keys immediately across backend replicas.
+- 810319e: Make Auto-fix setting changes take effect immediately across all backend replicas.
+- 2fac033: Apply hard-limit rule and usage changes immediately across backend replicas.
+- f9eecad: Apply message-recording setting changes immediately across backend replicas.
+- 94e3f9f: Fix the harness sidebar rendering after creation in Safari.
+
 ## 6.19.0
 
 ### Minor Changes
