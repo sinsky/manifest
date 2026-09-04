@@ -14,6 +14,15 @@ enable-openid-connect: true
 # Re-release: set `re_push=true` to force-update an already existing
 # `release/<version>` branch (force-with-lease), move the `manifest@<version>`
 # tag, re-publish the Docker image, and PATCH the existing Forgejo release.
+#
+# Re-release with fj (pass each input with its OWN -I flag; comma-separated
+# values are treated as a single input value):
+#
+#   fj actions dispatch -R sinsky/manifest \
+#     -I "base_version=6.21.1" \
+#     -I "custom_ref=custom/next" \
+#     -I "re_push=true" \
+#     release-version.yml custom/next
 
 on:
   workflow_dispatch:
@@ -368,8 +377,8 @@ jobs:
 
           EXISTING=$(curl -fsS -H "Authorization: token ${TOKEN}" "${SERVER}/api/v1/repos/${REPO}/releases/tags/${TAG}" 2>/dev/null || echo "")
           if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
-            ID=$(echo "$EXISTING" | node -e 'const fs=require("fs"); process.stdout.write(String(JSON.parse(fs.readFileSync(0, "utf-8")).id));' 2>/dev/null)
-            if [ -n "$ID" ] && [ "$ID" != "null" ]; then
+            ID=$(echo "$EXISTING" | jq -r '.id // empty' 2>/dev/null)
+            if [ -n "$ID" ]; then
               echo "Release with tag $TAG already exists (id=$ID); updating it."
               curl -fsS -X PATCH \
                 -H "Authorization: token ${TOKEN}" \
@@ -378,6 +387,8 @@ jobs:
                 "${SERVER}/api/v1/repos/${REPO}/releases/${ID}"
               exit 0
             fi
+            echo "::error::Found release payload for tag $TAG but could not parse its id. Refusing to create a duplicate release."
+            exit 1
           fi
 
           curl -fsS -X POST \
