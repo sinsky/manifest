@@ -368,7 +368,7 @@ jobs:
 
           EXISTING=$(curl -fsS -H "Authorization: token ${TOKEN}" "${SERVER}/api/v1/repos/${REPO}/releases/tags/${TAG}" 2>/dev/null || echo "")
           if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
-            ID=$(echo "$EXISTING" | node -e 'const fs=require("fs"); process.stdout.write(JSON.parse(fs.readFileSync(0, "utf-8")).id);' 2>/dev/null)
+            ID=$(echo "$EXISTING" | node -e 'const fs=require("fs"); process.stdout.write(String(JSON.parse(fs.readFileSync(0, "utf-8")).id));' 2>/dev/null)
             if [ -n "$ID" ] && [ "$ID" != "null" ]; then
               echo "Release with tag $TAG already exists (id=$ID); updating it."
               curl -fsS -X PATCH \
