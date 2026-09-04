@@ -1,6 +1,10 @@
 /* ── LLM Provider definitions (shared by Routing page) ── */
 
-import { SHARED_PROVIDER_BY_ID, type SharedProviderEntry } from 'manifest-shared';
+import {
+  META_MODEL_API_MODELS,
+  SHARED_PROVIDER_BY_ID,
+  type SharedProviderEntry,
+} from 'manifest-shared';
 
 export interface SubscriptionEndpointRegion {
   value: string;
@@ -158,6 +162,11 @@ const PROVIDER_UI: Record<string, ProviderUIOverlay> = {
     subscriptionAuthMode: 'popup_paste',
     models: [],
   },
+  vertex: {
+    initial: 'GV',
+    subtitle: 'Gemini via Google Cloud Vertex AI',
+    models: [],
+  },
   bedrock: {
     initial: 'AWS',
     subtitle: 'Claude, GPT, Kimi, MiniMax, Nova via Amazon Bedrock',
@@ -265,6 +274,11 @@ const PROVIDER_UI: Record<string, ProviderUIOverlay> = {
     subscriptionAuthMode: 'popup_oauth',
     models: [],
   },
+  'gemini-free': {
+    initial: 'GF',
+    subtitle: 'Free Gemini models via Manifest',
+    models: [],
+  },
   kiro: {
     initial: 'K',
     subtitle: 'Claude, DeepSeek, MiniMax, GLM, Qwen via Kiro',
@@ -316,6 +330,14 @@ const PROVIDER_UI: Record<string, ProviderUIOverlay> = {
       dividerLabel: 'Or paste your Coding Plan token',
     },
     models: [],
+  },
+  meta: {
+    initial: 'Me',
+    subtitle: 'Muse Spark 1.2, Contributor, and 1.1',
+    models: META_MODEL_API_MODELS.map((model) => ({
+      label: model.displayName,
+      value: model.id,
+    })),
   },
   xiaomi: {
     initial: 'Mi',
@@ -490,14 +512,17 @@ const PROVIDER_ORDER = [
   'commandcode',
   'deepseek',
   'fireworks',
+  'gemini-free',
   'copilot',
   'gemini',
+  'vertex',
   'groq',
   'huggingface',
   'kilo',
   'kiro',
   'llamacpp',
   'lmstudio',
+  'meta',
   'minimax',
   'mistral',
   'moonshot',

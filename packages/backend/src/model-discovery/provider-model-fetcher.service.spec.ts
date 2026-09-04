@@ -36,6 +36,7 @@ describe('ProviderModelFetcherService', () => {
       'nvidia',
       'xai',
       'minimax',
+      'meta',
       'minimax-subscription',
       'xiaomi',
       'xiaomi-subscription',
@@ -45,6 +46,7 @@ describe('ProviderModelFetcherService', () => {
       'anthropic',
       'gemini',
       'openrouter',
+      'gemini-free',
       'ollama',
       'ollama-cloud',
       'copilot',
@@ -53,6 +55,37 @@ describe('ProviderModelFetcherService', () => {
     for (const id of expected) {
       expect(PROVIDER_CONFIGS[id]).toBeDefined();
     }
+  });
+
+  it('discovers only Gemini models from the Gemini Free LiteLLM catalog', async () => {
+    process.env['CREDITS_BASE_URL'] = 'https://credits.test';
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          { id: 'gpt-5' },
+          { id: 'gemini-2.5-flash' },
+          { id: 'gemini/gemini-2.5-flash' },
+          { id: 'gemini/gemini-2.5-pro' },
+          { id: 'gemini/*' },
+        ],
+      }),
+    });
+
+    const result = await service.fetch('gemini-free', 'sk-virtual');
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://credits.test/v1/models',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer sk-virtual',
+        }),
+      }),
+    );
+    expect(result.map((model) => model.id)).toEqual([
+      'gemini/gemini-2.5-flash',
+      'gemini/gemini-2.5-pro',
+    ]);
   });
 
   describe('huggingface provider', () => {
@@ -740,6 +773,45 @@ describe('ProviderModelFetcherService', () => {
       );
       expect(result.map((m) => m.id)).toEqual(['grok-3', 'grok-4']);
       expect(result.every((m) => m.provider === 'xai')).toBe(true);
+    });
+  });
+
+  describe('meta provider', () => {
+    it('discovers only current Muse Spark models with their native capabilities', async () => {
+      fetchSpy.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'muse-spark-1.2' },
+            { id: 'muse-spark-1.2-contributor' },
+            { id: 'muse-spark-1.1' },
+            { id: 'retired-or-unrelated-model' },
+          ],
+        }),
+      });
+
+      const result = await service.fetch('meta', 'LLM_test-meta-key-value');
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://api.meta.ai/v1/models',
+        expect.objectContaining({
+          headers: { Authorization: 'Bearer LLM_test-meta-key-value' },
+        }),
+      );
+      expect(result.map((model) => model.id)).toEqual([
+        'muse-spark-1.2',
+        'muse-spark-1.2-contributor',
+        'muse-spark-1.1',
+      ]);
+      expect(result[1]).toMatchObject({
+        displayName: 'Muse Spark 1.2 Contributor (inputs and outputs may train Meta)',
+        provider: 'meta',
+        contextWindow: 1_048_576,
+        capabilityReasoning: true,
+        capabilityCode: true,
+        inputModalities: ['text', 'image', 'audio', 'video'],
+        outputModalities: ['text'],
+      });
     });
   });
 
@@ -1999,6 +2071,80 @@ describe('ProviderModelFetcherService', () => {
       );
     });
 
+    it('should filter out :batch variants (only served via the async Batch API)', async () => {
+      fetchSpy.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              id: 'openai/gpt-5',
+              name: 'GPT-5',
+              context_length: 400000,
+              architecture: { output_modalities: ['text'] },
+            },
+            {
+              id: 'openai/gpt-5:batch',
+              name: 'GPT-5 (batch)',
+              context_length: 400000,
+              architecture: { output_modalities: ['text'] },
+            },
+          ],
+        }),
+      });
+
+      const result = await service.fetch('openrouter', '');
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('openai/gpt-5');
+    });
+
+    it('should normalize OpenRouter input and output modalities', async () => {
+      fetchSpy.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              id: 'deepseek/deepseek-v4-flash',
+              architecture: {
+                input_modalities: ['text'],
+                output_modalities: ['text'],
+              },
+            },
+            {
+              id: 'google/gemini-2.5-flash',
+              architecture: {
+                input_modalities: ['file', 'image', 'text', 'audio', 'video'],
+                output_modalities: ['text'],
+              },
+            },
+            {
+              id: 'file-only',
+              architecture: {
+                input_modalities: ['file'],
+                output_modalities: ['text'],
+              },
+            },
+          ],
+        }),
+      });
+
+      const result = await service.fetch('openrouter', '');
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          inputModalities: ['text'],
+          outputModalities: ['text'],
+        }),
+        expect.objectContaining({
+          inputModalities: ['text', 'image', 'audio', 'video'],
+          outputModalities: ['text'],
+        }),
+        expect.objectContaining({
+          outputModalities: ['text'],
+        }),
+      ]);
+      expect(result[2]).not.toHaveProperty('inputModalities');
+    });
+
     it('should filter out non-text output modality models', async () => {
       fetchSpy.mockResolvedValue({
         ok: true,
@@ -2344,6 +2490,7 @@ describe('ProviderModelFetcherService', () => {
           displayName: 'GPT-5.5',
           provider: 'openai',
           contextWindow: 192000,
+          contextWindowSource: 'provider',
           inputPricePerToken: 0,
           outputPricePerToken: 0,
           capabilityCode: true,
@@ -2413,6 +2560,7 @@ describe('ProviderModelFetcherService', () => {
 
       const result = await service.fetch('openai', 'token', 'subscription');
       expect(result[0].contextWindow).toBe(200000);
+      expect(result[0].contextWindowSource).toBe('subscription_config');
     });
 
     it('should return [] when models is not an array', async () => {
@@ -2505,6 +2653,169 @@ describe('ProviderModelFetcherService', () => {
         }),
       );
       expect(result[1].id).toBe('copilot/gpt-4o');
+    });
+
+    it('should convert Copilot AI-credit prices to USD per token', async () => {
+      fetchSpy.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              id: 'claude-sonnet-4.6',
+              billing: {
+                token_prices: {
+                  batch_size: 1_000_000,
+                  default: {
+                    input_price: 300,
+                    output_price: 1500,
+                    cache_read_price: 30,
+                    cache_write_price: 375,
+                    max_prompt_tokens: 200_000,
+                  },
+                  long_context: {
+                    input_price: 600,
+                    output_price: 2250,
+                    cache_read_price: 60,
+                    cache_write_price: 750,
+                    max_prompt_tokens: 936_000,
+                  },
+                },
+              },
+            },
+          ],
+        }),
+      });
+
+      const result = await service.fetch('copilot', 'tid=token');
+
+      expect(result[0]).toMatchObject({
+        inputPricePerToken: 3 / 1_000_000,
+        outputPricePerToken: 15 / 1_000_000,
+        cacheReadPricePerToken: 0.3 / 1_000_000,
+        cacheWritePricePerToken: 3.75 / 1_000_000,
+        longContextPricing: {
+          thresholdTokens: 200_000,
+          inputPricePerToken: 6 / 1_000_000,
+          outputPricePerToken: 22.5 / 1_000_000,
+          cacheReadPricePerToken: 0.6 / 1_000_000,
+          cacheWritePricePerToken: 7.5 / 1_000_000,
+        },
+      });
+    });
+
+    it('should preserve Copilot long-context prices and their prompt threshold', async () => {
+      fetchSpy.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              id: 'gpt-5.6-terra',
+              billing: {
+                token_prices: {
+                  default: {
+                    input_price: 200,
+                    output_price: 1200,
+                    cache_price: 20,
+                    cache_write_price: 250,
+                    context_max: 272_000,
+                  },
+                  long_context: {
+                    input_price: 400,
+                    output_price: 1800,
+                    cache_price: 40,
+                    cache_write_price: 500,
+                    context_max: 936_000,
+                  },
+                },
+              },
+            },
+          ],
+        }),
+      });
+
+      const result = await service.fetch('copilot', 'tid=token');
+
+      expect(result[0]).toMatchObject({
+        contextWindow: 936_000,
+        inputPricePerToken: 2 / 1_000_000,
+        outputPricePerToken: 12 / 1_000_000,
+        cacheReadPricePerToken: 0.2 / 1_000_000,
+        cacheWritePricePerToken: 2.5 / 1_000_000,
+        longContextPricing: {
+          thresholdTokens: 272_000,
+          inputPricePerToken: 4 / 1_000_000,
+          outputPricePerToken: 18 / 1_000_000,
+          cacheReadPricePerToken: 0.4 / 1_000_000,
+          cacheWritePricePerToken: 5 / 1_000_000,
+        },
+      });
+    });
+
+    it('should omit unavailable Copilot cache prices', async () => {
+      fetchSpy.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              id: 'gpt-5-mini',
+              billing: {
+                token_prices: {
+                  batch_size: 1_000_000,
+                  default: { input_price: 25, output_price: 200 },
+                },
+              },
+            },
+          ],
+        }),
+      });
+
+      const result = await service.fetch('copilot', 'tid=token');
+
+      expect(result[0]).toMatchObject({
+        inputPricePerToken: 0.25 / 1_000_000,
+        outputPricePerToken: 2 / 1_000_000,
+      });
+      expect(result[0]).not.toHaveProperty('cacheReadPricePerToken');
+      expect(result[0]).not.toHaveProperty('cacheWritePricePerToken');
+    });
+
+    it('should keep subscription pricing at zero when Copilot billing is invalid', async () => {
+      fetchSpy.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              id: 'gpt-4o',
+              billing: {
+                token_prices: {
+                  batch_size: 0,
+                  default: { input_price: 100, output_price: 500 },
+                },
+              },
+            },
+            {
+              id: 'gpt-4.1',
+              billing: {
+                token_prices: {
+                  batch_size: 1_000_000,
+                  default: { input_price: -1, output_price: Number.POSITIVE_INFINITY },
+                },
+              },
+            },
+          ],
+        }),
+      });
+
+      const result = await service.fetch('copilot', 'tid=token');
+
+      expect(result[0]).toMatchObject({
+        inputPricePerToken: 0,
+        outputPricePerToken: 0,
+      });
+      expect(result[1]).toMatchObject({
+        inputPricePerToken: 0,
+        outputPricePerToken: 0,
+      });
     });
 
     it('should send correct Copilot headers', async () => {

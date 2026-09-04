@@ -1,9 +1,29 @@
-import type { ModelRoute } from 'manifest-shared';
+import { inferProviderFromModel, type ModelRoute } from 'manifest-shared';
 import type { DiscoveredModel } from '../../model-discovery/model-fetcher';
 import { unambiguousRoute } from '../routing-core/route-helpers';
 
 export const OPENAI_MODEL_ID_AUTO = 'auto';
-const SUBSCRIPTION_MODEL_SUFFIX = '-subscription';
+export const SUBSCRIPTION_MODEL_SUFFIX = '-subscription';
+
+export interface ExplicitModelRouteCandidate {
+  provider: string;
+  model: string;
+  providerQualified: boolean;
+}
+
+/** Encode a provider-native model for Manifest's public subscription route. */
+export function subscriptionOpenAiModelId(provider: string, modelId: string): string {
+  const normalizedProvider = provider.toLowerCase();
+  if (modelId === OPENAI_MODEL_ID_AUTO || normalizedProvider.startsWith('custom:')) return modelId;
+
+  const prefix = `${normalizedProvider}/`;
+  const routeId = modelId.toLowerCase().startsWith(prefix)
+    ? modelId
+    : `${normalizedProvider}/${modelId}`;
+  return routeId.endsWith(SUBSCRIPTION_MODEL_SUFFIX)
+    ? routeId
+    : `${routeId}${SUBSCRIPTION_MODEL_SUFFIX}`;
+}
 
 export function openAiModelId(model: DiscoveredModel): string {
   const provider = model.provider.toLowerCase();
@@ -11,14 +31,13 @@ export function openAiModelId(model: DiscoveredModel): string {
 
   const prefix = `${provider}/`;
   const routeId = model.id.toLowerCase().startsWith(prefix) ? model.id : `${provider}/${model.id}`;
-  if (model.authType !== 'subscription' || routeId.endsWith(SUBSCRIPTION_MODEL_SUFFIX)) {
-    return routeId;
-  }
-  return `${routeId}${SUBSCRIPTION_MODEL_SUFFIX}`;
+  return model.authType === 'subscription'
+    ? subscriptionOpenAiModelId(provider, model.id)
+    : routeId;
 }
 
 /**
- * Resolve the `model` field of an OpenAI-compatible request to a route.
+ * Resolve the `model` field of a proxy request to a route.
  *
  * Matches the provider-qualified id published by `/v1/models`
  * (`openai/gpt-5.4-nano`) first, then the bare provider-native name
@@ -42,4 +61,37 @@ export function routeForOpenAiModelId(
     };
   }
   return unambiguousRoute(modelId, [...models]);
+}
+
+/**
+ * Infer the provider transport and provider-native model from an explicit
+ * request when the model is not yet present in the discovered catalog.
+ *
+ * Provider-qualified IDs use the first path segment as the transport
+ * (`openrouter/anthropic/claude` → OpenRouter + `anthropic/claude`). Bare IDs
+ * are accepted only when their naming convention identifies a provider.
+ * Connection and auth-type checks remain the caller's responsibility.
+ */
+export function explicitModelRouteCandidate(modelId: string): ExplicitModelRouteCandidate | null {
+  if (modelId.startsWith('custom:')) {
+    const slashIndex = modelId.indexOf('/');
+    if (slashIndex <= 0) return null;
+    return {
+      provider: modelId.slice(0, slashIndex),
+      model: modelId,
+      providerQualified: true,
+    };
+  }
+
+  const slashIndex = modelId.indexOf('/');
+  if (slashIndex > 0 && slashIndex < modelId.length - 1) {
+    return {
+      provider: modelId.slice(0, slashIndex).toLowerCase(),
+      model: modelId.slice(slashIndex + 1),
+      providerQualified: true,
+    };
+  }
+
+  const provider = inferProviderFromModel(modelId);
+  return provider ? { provider, model: modelId, providerQualified: false } : null;
 }

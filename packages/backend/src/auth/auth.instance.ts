@@ -1,13 +1,12 @@
 import { betterAuth } from 'better-auth';
 import type { Auth } from 'better-auth';
-import { genericOAuth } from 'better-auth/plugins/generic-oauth';
-import type { GenericOAuthConfig } from 'better-auth/plugins/generic-oauth';
 import { stripe as stripePlugin } from '@better-auth/stripe';
 import { render } from '@react-email/render';
 import { VerifyEmailEmail } from '../notifications/emails/verify-email';
 import { ResetPasswordEmail } from '../notifications/emails/reset-password';
 import { sendEmail } from '../notifications/services/email-providers/send-email';
 import { isBillingEnabled, getStripeClient } from '../billing/billing.config';
+import { optionalPositiveInteger } from '../config/env.util';
 import {
   previousPlanFromEvent,
   sendPlanChangedEmail,
@@ -31,7 +30,7 @@ function createDatabaseConnection() {
   // connection pools don't jointly exhaust Postgres's max_connections. Auth
   // traffic is light relative to ingest, hence a smaller default than the app
   // pool. Idle connections are reaped after 30s to free server-side slots.
-  const max = Number(process.env['AUTH_DB_POOL_MAX'] ?? 10);
+  const max = optionalPositiveInteger(process.env['AUTH_DB_POOL_MAX']) ?? 5;
   return new Pool({ connectionString: databaseUrl, max, idleTimeoutMillis: 30000 });
 }
 
@@ -69,83 +68,11 @@ function buildTrustedOrigins(): string[] {
   return origins;
 }
 
-function buildOidcProviderConfig(): GenericOAuthConfig | null {
-  const clientId = process.env['OIDC_CLIENT_ID'];
-  const clientSecret = process.env['OIDC_CLIENT_SECRET'];
-
-  if (!clientId || !clientSecret) {
-    return null;
-  }
-
-  const providerId = process.env['OIDC_PROVIDER_ID'] ?? 'oidc';
-  const issuer = process.env['OIDC_ISSUER'];
-  const discoveryUrl = process.env['OIDC_DISCOVERY_URL'];
-  const authorizationUrl = process.env['OIDC_AUTHORIZATION_URL'];
-  const tokenUrl = process.env['OIDC_TOKEN_URL'];
-  const userInfoUrl = process.env['OIDC_USERINFO_URL'];
-
-  if (!issuer && !discoveryUrl && !authorizationUrl && !tokenUrl) {
-    return null;
-  }
-
-  const scopes = process.env['OIDC_SCOPES']
-    ?.split(',')
-    .map((scope) => scope.trim())
-    .filter(Boolean) ?? ['openid', 'profile', 'email'];
-
-  const pkce = process.env['OIDC_PKCE'] !== 'false';
-  const disableSignUp = process.env['OIDC_DISABLE_SIGN_UP'] === 'true';
-  const overrideUserInfo = process.env['OIDC_OVERRIDE_USER_INFO'] === 'true';
-
-  const config: GenericOAuthConfig = {
-    providerId,
-    clientId,
-    clientSecret,
-    scopes,
-    pkce,
-    disableSignUp,
-    overrideUserInfo,
-  };
-
-  if (discoveryUrl) {
-    config.discoveryUrl = discoveryUrl;
-  } else if (issuer) {
-    const normalizedIssuer = issuer.endsWith('/') ? issuer.slice(0, -1) : issuer;
-    config.discoveryUrl = `${normalizedIssuer}/.well-known/openid-configuration`;
-  }
-
-  if (authorizationUrl) {
-    config.authorizationUrl = authorizationUrl;
-  }
-  if (tokenUrl) {
-    config.tokenUrl = tokenUrl;
-  }
-  if (userInfoUrl) {
-    config.userInfoUrl = userInfoUrl;
-  }
-
-  return config;
-}
-
-const oidcProviderConfig = buildOidcProviderConfig();
-
-function buildGenericOAuthPlugin() {
-  if (!oidcProviderConfig) return null;
-  return genericOAuth({ config: [oidcProviderConfig] });
-}
-
 function buildPlugins() {
-  const plugins = [];
-  const genericOAuthPlugin = buildGenericOAuthPlugin();
-  if (genericOAuthPlugin) {
-    plugins.push(genericOAuthPlugin);
-  }
-
-  if (!isBillingEnabled()) return plugins;
+  if (!isBillingEnabled()) return [];
   const plans = [{ name: 'pro', priceId: process.env['STRIPE_PRO_PRICE_ID']! }];
   const priceToPlan = new Map(plans.map((plan) => [plan.priceId, plan.name]));
   return [
-    ...plugins,
     stripePlugin({
       stripeClient: getStripeClient(),
       stripeWebhookSecret: process.env['STRIPE_WEBHOOK_SECRET']!,
@@ -184,9 +111,7 @@ export const auth = betterAuth({
   account: {
     accountLinking: {
       enabled: true,
-      trustedProviders: oidcProviderConfig
-        ? ['google', 'github', 'discord', oidcProviderConfig.providerId]
-        : ['google', 'github', 'discord'],
+      trustedProviders: ['google', 'github', 'discord'],
     },
   },
   emailAndPassword: {

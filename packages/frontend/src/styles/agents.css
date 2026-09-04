@@ -95,14 +95,6 @@
   flex-shrink: 0;
 }
 
-.dark .agent-card__platform-icon[src*='openai'],
-.dark .agent-card__platform-icon[src*='anthropic'],
-.dark .agent-card__platform-icon[src*='vercel'],
-.dark .agent-card__platform-icon[src*='opencode'],
-.dark .agent-card__platform-icon[src*='other'] {
-  filter: invert(1);
-}
-
 .agent-card__name {
   font-size: var(--font-size-base);
   font-weight: 600;
@@ -685,7 +677,7 @@
   padding: var(--gap-md) var(--gap-lg);
 }
 
-/* ── Settings toggle switch (e.g. Auto-fix) ─────────── */
+/* ── Settings toggle switch (e.g. Autofix) ─────────── */
 .settings-switch {
   display: inline-flex;
   align-items: center;
@@ -838,20 +830,34 @@
   background: hsl(var(--chart-1) / 0.08);
 }
 
-/* Dark-mode icon inversion for Settings agent type display */
-.dark .settings-type__icon[src*='openai'],
-.dark .settings-type__icon[src*='anthropic'],
-.dark .settings-type__icon[src*='vercel'],
-.dark .settings-type__icon[src*='opencode'],
-.dark .settings-type__icon[src*='other'] {
-  filter: invert(1);
-}
-
 /* Dark-mode icon inversion for Overview heading */
 .dark .overview__platform-icon[src*='openai'],
 .dark .overview__platform-icon[src*='anthropic'],
 .dark .overview__platform-icon[src*='vercel'],
 .dark .overview__platform-icon[src*='opencode'],
+.dark .overview__platform-icon[src*='hermes'],
 .dark .overview__platform-icon[src*='other'] {
   filter: invert(1);
+}
+
+/* ── Harness table view (Workspace) ─────────────────── */
+.workspace-table__name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  color: hsl(var(--foreground));
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.workspace-table__name:hover {
+  text-decoration: underline;
+}
+
+.workspace-table__actions {
+  text-align: right;
+}
+
+.workspace-table__icon {
+  flex-shrink: 0;
 }

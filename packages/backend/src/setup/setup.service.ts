@@ -48,15 +48,6 @@ export class SetupService {
       providers.push('github');
     if (process.env['DISCORD_CLIENT_ID'] && process.env['DISCORD_CLIENT_SECRET'])
       providers.push('discord');
-    if (
-      process.env['OIDC_CLIENT_ID'] &&
-      process.env['OIDC_CLIENT_SECRET'] &&
-      (process.env['OIDC_ISSUER'] ||
-        process.env['OIDC_DISCOVERY_URL'] ||
-        process.env['OIDC_AUTHORIZATION_URL'] ||
-        process.env['OIDC_TOKEN_URL'])
-    )
-      providers.push(process.env['OIDC_PROVIDER_ID'] ?? 'oidc');
     return providers;
   }
 

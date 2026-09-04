@@ -1,5 +1,10 @@
 import type { DiscoveredModel } from '../../../model-discovery/model-fetcher';
-import { openAiModelId, routeForOpenAiModelId } from '../openai-model-id';
+import {
+  explicitModelRouteCandidate,
+  openAiModelId,
+  routeForOpenAiModelId,
+  subscriptionOpenAiModelId,
+} from '../openai-model-id';
 
 function model(overrides: Partial<DiscoveredModel> = {}): DiscoveredModel {
   return {
@@ -30,6 +35,17 @@ describe('OpenAI model ids', () => {
     );
     expect(openAiModelId(model({ id: 'gpt-5.5-subscription', authType: 'subscription' }))).toBe(
       'openai/gpt-5.5-subscription',
+    );
+  });
+
+  it('encodes native subscription models idempotently', () => {
+    expect(subscriptionOpenAiModelId('openai', 'auto')).toBe('auto');
+    expect(subscriptionOpenAiModelId('openai', 'gpt-5.5')).toBe('openai/gpt-5.5-subscription');
+    expect(subscriptionOpenAiModelId('openai', 'openai/gpt-5.5-subscription')).toBe(
+      'openai/gpt-5.5-subscription',
+    );
+    expect(subscriptionOpenAiModelId('opencode-go', 'opencode-go/glm-5.1')).toBe(
+      'opencode-go/glm-5.1-subscription',
     );
   });
 
@@ -116,5 +132,33 @@ describe('OpenAI model ids', () => {
 
   it('returns null for a bare name that matches nothing', () => {
     expect(routeForOpenAiModelId('some-retired-model', [model()])).toBeNull();
+  });
+
+  it('parses an uncatalogued provider-qualified model into its transport route', () => {
+    expect(explicitModelRouteCandidate('openrouter/anthropic/claude-new')).toEqual({
+      provider: 'openrouter',
+      model: 'anthropic/claude-new',
+      providerQualified: true,
+    });
+  });
+
+  it('preserves a custom provider model id for custom endpoint resolution', () => {
+    expect(explicitModelRouteCandidate('custom:provider-1/model-new')).toEqual({
+      provider: 'custom:provider-1',
+      model: 'custom:provider-1/model-new',
+      providerQualified: true,
+    });
+  });
+
+  it('infers the provider for an uncatalogued bare native model', () => {
+    expect(explicitModelRouteCandidate('claude-new')).toEqual({
+      provider: 'anthropic',
+      model: 'claude-new',
+      providerQualified: false,
+    });
+  });
+
+  it('refuses a bare model whose provider cannot be inferred', () => {
+    expect(explicitModelRouteCandidate('some-retired-model')).toBeNull();
   });
 });

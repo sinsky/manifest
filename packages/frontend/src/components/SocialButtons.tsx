@@ -88,9 +88,13 @@ const OidcIcon: () => JSX.Element = () => (
   </svg>
 );
 
-const SocialButtons: Component<{ enabledProviders?: string[]; lastUsed?: string | null }> = (
-  props,
-) => {
+interface SocialButtonsProps {
+  enabledProviders?: string[];
+  lastUsed?: string | null;
+  callbackURL?: string;
+}
+
+const SocialButtons: Component<SocialButtonsProps> = (props) => {
   const [searchParams] = useSearchParams();
   const enabled = () => props.enabledProviders ?? socialProviders.map((p) => p.id);
   const visibleSocial = () => socialProviders.filter((p) => enabled().includes(p.id));
@@ -99,7 +103,10 @@ const SocialButtons: Component<{ enabledProviders?: string[]; lastUsed?: string 
   // `socialProviders`, and its login flow is started with `signIn.oauth2`
   // rather than `signIn.social`.
   const oidcProviders = () => enabled().filter((id) => !isSocialProvider(id));
-  const authUrls = () => buildSocialAuthUrls(searchParams);
+  const authUrls = () => ({
+    ...buildSocialAuthUrls(searchParams),
+    ...(props.callbackURL ? { callbackURL: props.callbackURL } : {}),
+  });
 
   return (
     <Show when={visibleSocial().length > 0 || oidcProviders().length > 0}>

@@ -1,6 +1,14 @@
+const ORIGINAL_ENCRYPTION_KEY = process.env['MANIFEST_ENCRYPTION_KEY'];
+process.env['MANIFEST_ENCRYPTION_KEY'] ??= 'test-recording-secret-at-least-32-characters';
+afterAll(() => {
+  if (ORIGINAL_ENCRYPTION_KEY === undefined) delete process.env['MANIFEST_ENCRYPTION_KEY'];
+  else process.env['MANIFEST_ENCRYPTION_KEY'] = ORIGINAL_ENCRYPTION_KEY;
+});
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotFoundException } from '@nestjs/common';
+import { encodeRequestRecording } from '../../common/utils/request-recording-codec';
 import { MessageDetailsService } from './message-details.service';
 import { AgentMessage } from '../../entities/agent-message.entity';
 
@@ -195,7 +203,7 @@ describe('MessageDetailsService', () => {
     expect(result.message.autofix_sibling).toBeNull();
   });
 
-  it('does not return recording, llm_calls, tool_executions, or agent_logs', async () => {
+  it('does not expose a request-level recording or restore legacy trace payloads', async () => {
     const result = (await service.getDetails('msg-1', 'u1')) as unknown as Record<string, unknown>;
 
     expect(Object.keys(result)).toEqual(['message']);
@@ -334,6 +342,7 @@ describe('MessageDetailsService', () => {
       {
         ...baseMessage,
         id: 'attempt-2',
+        recording_key: 'request-recordings/v1/attempt-2.json.gz',
         status: 'ok',
         provider: 'anthropic',
         model: 'claude',
@@ -351,9 +360,19 @@ describe('MessageDetailsService', () => {
         request_params: { temperature: 0.2 },
       },
     ];
+    const storedPayload = {
+      version: 1,
+      wire_format: 'anthropic_messages',
+      request_body: { messages: [{ role: 'user', content: 'hello' }] },
+      response_body: { type: 'json', body: { choices: [] } },
+    };
+    const recordingStorage = {
+      get: jest.fn().mockResolvedValue(await encodeRequestRecording(storedPayload as never)),
+    };
     const requestAware = new MessageDetailsService(
       { find: jest.fn().mockResolvedValue(attempts) } as never,
       { findOne: jest.fn().mockResolvedValue(requestRow) } as never,
+      recordingStorage as never,
     );
 
     const result = await requestAware.getDetails('request-1', 't1');
@@ -379,6 +398,12 @@ describe('MessageDetailsService', () => {
       expect.objectContaining({ id: 'attempt-1', provider: 'openai' }),
       expect.objectContaining({ id: 'attempt-2', provider: 'anthropic' }),
     ]);
+    expect(recordingStorage.get).toHaveBeenCalledWith('request-recordings/v1/attempt-2.json.gz');
+    expect(result.message.attempts![1]!.recording).toEqual({
+      request_body: storedPayload.request_body,
+      response_body: storedPayload.response_body,
+      wire_format: 'anthropic_messages',
+    });
     // The drawer tells each attempt's full story — the projection must carry
     // the error, fallback, autofix, token and headers/params surface.
     expect(result.message.attempts![0]).toEqual(
@@ -401,6 +426,33 @@ describe('MessageDetailsService', () => {
         request_params: { temperature: 0.2 },
       }),
     );
+  });
+
+  it('keeps request details available when the recording object cannot be loaded', async () => {
+    const requestAware = new MessageDetailsService(
+      {
+        find: jest.fn().mockResolvedValue([
+          {
+            ...baseMessage,
+            recording_key: 'request-recordings/v1/msg-1.json.gz',
+          },
+        ]),
+      } as never,
+      {
+        findOne: jest.fn().mockResolvedValue({
+          id: 'request-1',
+          tenant_id: 't1',
+          timestamp: baseMessage.timestamp,
+          status: 'ok',
+        }),
+      } as never,
+      { get: jest.fn().mockRejectedValue(new Error('bucket offline')) } as never,
+    );
+
+    const result = await requestAware.getDetails('request-1', 't1');
+
+    expect(result.message.id).toBe('request-1');
+    expect(result.message.attempts![0]!.recording).toBeNull();
   });
 
   it('follows a linked attempt to its request after the online backfill', async () => {

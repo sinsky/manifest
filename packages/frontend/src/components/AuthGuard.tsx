@@ -3,7 +3,9 @@ import { Show, createEffect, createSignal, type ParentComponent } from 'solid-js
 import { authClient } from '../services/auth-client.js';
 import { buildLoginRedirect } from '../services/auth-redirects.js';
 import { hasPlanBeenChosen, markPlanChosen } from '../services/plan-selection.js';
-import { getBillingStatus } from '../services/api/billing.js';
+import { hasOnboardingBeenDone } from '../services/onboarding.js';
+import { getDiscoveryPendingNext } from '../services/discovery.js';
+import { loadPlan } from '../services/plan-store.js';
 
 const AuthGuard: ParentComponent = (props) => {
   const session = authClient.useSession();
@@ -19,23 +21,39 @@ const AuthGuard: ParentComponent = (props) => {
       return;
     }
     const userId = s.data.user?.id;
-    if (planChecked()) return;
-    if (userId && hasPlanBeenChosen(userId)) {
-      setPlanChecked(true);
+    // A freshly signed-up user with the discovery step still pending is sent
+    // back to it from anywhere in the app except the form itself.
+    const pendingNext = getDiscoveryPendingNext(userId ?? '');
+    if (pendingNext !== null && location.pathname !== '/discovery') {
+      navigate(`/discovery?next=${encodeURIComponent(pendingNext)}`, { replace: true });
       return;
     }
-    getBillingStatus()
-      .then((status) => {
-        if (status?.enabled && status.plan !== 'pro') {
-          navigate('/register?step=plan&context=login', { replace: true });
-        } else {
-          if (userId) markPlanChosen(userId);
-          setPlanChecked(true);
-        }
-      })
-      .catch(() => {
+    if (planChecked()) return;
+    // Resolve the plan store before rendering any page — downstream consumers
+    // (range locks) read it synchronously. loadPlan never rejects (fail-open)
+    // and costs one indexed query.
+    loadPlan().then((status) => {
+      // /register?step=plan is the plan selection destination — never intercept it.
+      if (location.pathname === '/register') {
         setPlanChecked(true);
-      });
+        return;
+      }
+      if (userId && hasPlanBeenChosen(userId)) {
+        setPlanChecked(true);
+        return;
+      }
+      // Don't gate on plan selection before the user has completed onboarding.
+      if (userId && !hasOnboardingBeenDone(userId)) {
+        setPlanChecked(true);
+        return;
+      }
+      if (status.enabled && status.plan !== 'pro') {
+        navigate('/register?step=plan', { replace: true });
+        return;
+      }
+      if (userId) markPlanChosen(userId);
+      setPlanChecked(true);
+    });
   });
 
   return (
@@ -45,7 +63,11 @@ const AuthGuard: ParentComponent = (props) => {
         <div class="auth-layout">
           <div class="auth-card" style="text-align: center;">
             <div class="auth-logo">
-              <img src="/logotype-white.svg" alt="Manifest" class="auth-logo__img auth-logo__img--light" />
+              <img
+                src="/logotype-white.svg"
+                alt="Manifest"
+                class="auth-logo__img auth-logo__img--light"
+              />
               <img src="/logotype-dark.svg" alt="" class="auth-logo__img auth-logo__img--dark" />
             </div>
             <p style="color: hsl(var(--muted-foreground)); font-size: var(--font-size-sm);">

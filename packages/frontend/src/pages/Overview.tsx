@@ -34,19 +34,18 @@ import {
 } from '../services/api/analytics.js';
 import { preloadModelDisplayNames } from '../services/model-display.js';
 import { isRecentlyCreated, isSetupPending, clearSetupPending } from '../services/recent-agents.js';
-import { messagePing } from '../services/sse.js';
+import { analyticsPing } from '../services/sse.js';
 import {
   RANGE_STORAGE_KEY,
   VALID_RANGES,
   useOverviewColumns,
   useOverviewRange,
 } from '../services/use-overview-range.js';
-import { getBillingStatus } from '../services/api/billing.js';
+import { usePlanRangeLock } from '../services/plan-range-lock.js';
 import '../styles/overview.css';
 import '../styles/charts.css';
 import '../styles/routing.css';
 import { getAutofixStats } from '../services/api/analytics.js';
-import { getAutofixCohort } from '../services/api/autofix.js';
 
 const PRO_RANGES = new Set(['30d', '90d', '365d']);
 const AGENT_RANGE_OPTIONS = [
@@ -118,25 +117,6 @@ const Overview: Component = () => {
   const location = useLocation<{ newApiKey?: string }>();
   const navigate = useNavigate();
   preloadModelDisplayNames();
-  const [billing] = createResource(async () => {
-    try {
-      return await getBillingStatus();
-    } catch {
-      return null;
-    }
-  });
-  const isFreePlan = () => billing()?.enabled && billing()?.plan === 'free';
-  const shouldLockProRanges = () => billing.loading || isFreePlan();
-  const isProRangeLocked = (value: string) => shouldLockProRanges() && PRO_RANGES.has(value);
-  const proBadge = () => (
-    <span class="pro-range-badge" aria-label="Pro plan required">
-      PRO
-    </span>
-  );
-  const agentRangeOptions = () =>
-    AGENT_RANGE_OPTIONS.map((opt) =>
-      isProRangeLocked(opt.value) ? { ...opt, disabled: true, badge: proBadge() } : opt,
-    );
   const { columns } = useOverviewColumns();
   // Only treat the stored value as a user selection when it is actually valid.
   // An invalid stored range falls through to the smart-range cascade.
@@ -146,7 +126,20 @@ const Overview: Component = () => {
   const { range, setRange, handleRangeChange } = useOverviewRange({
     markUserSelected: () => setUserSelectedRange(true),
   });
-  const effectiveRange = createMemo(() => (isProRangeLocked(range()) ? '7d' : range()));
+  const { isFreePlan, isProRangeLocked, effectiveRange } = usePlanRangeLock(
+    range,
+    PRO_RANGES,
+    '7d',
+  );
+  const proBadge = () => (
+    <span class="pro-range-badge" aria-label="Pro plan required">
+      PRO
+    </span>
+  );
+  const agentRangeOptions = () =>
+    AGENT_RANGE_OPTIONS.map((opt) =>
+      isProRangeLocked(opt.value) ? { ...opt, disabled: true, badge: proBadge() } : opt,
+    );
   const [activeView, setActiveViewRaw] = createSignal<ProviderView>('requests');
   const [tokenChartRequested, setTokenChartRequested] = createSignal(false);
   const [costChartRequested, setCostChartRequested] = createSignal(false);
@@ -169,23 +162,29 @@ const Overview: Component = () => {
     !!localStorage.getItem(`setup_completed_${params.agentName}`),
   );
 
-  const [data, { refetch }] = createResource(
-    () =>
-      billing.loading
-        ? false
-        : { range: effectiveRange(), agentName: params.agentName, _ping: messagePing() },
-    (p) => getOverview(p.range, p.agentName) as Promise<OverviewData>,
+  // Never waits on billing/status: the plan-hint lock resolves the range
+  // synchronously, so this fetches exactly once at the right range.
+  // The memo's identity changes on every range/agent transition (including
+  // A → B → A) but stays stable across same-scope SSE refreshes.
+  const overviewScope = createMemo(() => ({
+    range: effectiveRange(),
+    agentName: params.agentName,
+  }));
+  const [overviewResult, { refetch }] = createResource(
+    () => ({ scope: overviewScope(), _ping: analyticsPing() }),
+    async (p) => ({
+      scope: p.scope,
+      data: (await getOverview(p.scope.range, p.scope.agentName)) as OverviewData,
+    }),
   );
+  const data = () => overviewResult()?.data;
 
   // The resource re-fetches on range, agent, and every SSE `_ping`. We only want
-  // the loading skeleton on a range change — not on the frequent background ping
-  // refetches (which should update in place). Track the range the visible data
-  // belongs to; while a newer range is loading, treat it as a range change.
-  const [loadedRange, setLoadedRange] = createSignal(effectiveRange());
-  createEffect(() => {
-    if (!data.loading && data() !== undefined) setLoadedRange(effectiveRange());
-  });
-  const rangeChanging = () => data.loading && loadedRange() !== effectiveRange();
+  // the loading skeleton on a range change or agent switch — not on the frequent
+  // background ping refetches (which should update in place). Track the range
+  // and agent the visible data belongs to; while a newer range/agent is loading,
+  // treat it as a change that should show the skeleton instead of stale data.
+  const [loadedScope, setLoadedScope] = createSignal(overviewScope());
 
   const showDashboard = () => {
     const d = data();
@@ -252,36 +251,28 @@ const Overview: Component = () => {
   const tsKey = (): TimeseriesKey => ({
     range: effectiveRange(),
     agent: params.agentName,
-    _ping: messagePing(),
+    _ping: analyticsPing(),
   });
   const [providerTokenTs] = createResource(
-    () => (tokenChartRequested() && !billing.loading ? tsKey() : false),
+    () => (tokenChartRequested() ? tsKey() : false),
     (p) => getPerProviderTimeseries(p.agent, p.range) as Promise<PivotedTimeseries>,
   );
   const [providerMessageTs] = createResource(
-    () => (billing.loading ? false : tsKey()),
+    () => tsKey(),
     (p) => getPerProviderMessageTimeseries(p.agent, p.range) as Promise<PivotedTimeseries>,
   );
   const [providerCostTs] = createResource(
-    () => (costChartRequested() && !billing.loading ? tsKey() : false),
+    () => (costChartRequested() ? tsKey() : false),
     (p) => getPerProviderCostTimeseries(p.agent, p.range) as Promise<PivotedTimeseries>,
   );
 
-  // ── Auto-fix resources (conditional on tenant cohort) ───────────────
-  const [autofixCohort] = createResource(
-    () => ({ _ping: messagePing() }),
-    () => getAutofixCohort(),
-  );
-  const autofixEligible = () => autofixCohort()?.eligible ?? false;
+  // ── Autofix resources ─────────────────────────────────
   const [autofixStats] = createResource(
-    () =>
-      autofixEligible()
-        ? {
-            range: effectiveRange(),
-            agent: decodeURIComponent(params.agentName),
-            _ping: messagePing(),
-          }
-        : false,
+    () => ({
+      range: effectiveRange(),
+      agent: decodeURIComponent(params.agentName),
+      _ping: analyticsPing(),
+    }),
     (p) => getAutofixStats(p.range, p.agent),
   );
   // Disposition timeseries: the Requests chart's ONLY view on this page (an
@@ -291,7 +282,7 @@ const Overview: Component = () => {
     () => ({
       range: effectiveRange(),
       agent: decodeURIComponent(params.agentName),
-      _ping: messagePing(),
+      _ping: analyticsPing(),
     }),
     (p) => getAutofixTimeseries(p.range, 'disposition', p.agent),
   );
@@ -299,10 +290,32 @@ const Overview: Component = () => {
     () => ({
       range: effectiveRange(),
       agent: decodeURIComponent(params.agentName),
-      _ping: messagePing(),
+      _ping: analyticsPing(),
     }),
     (p) => getPerModelReliability(p.range, p.agent),
   );
+
+  const supportingDataLoading = () =>
+    providerTokenTs.loading ||
+    providerMessageTs.loading ||
+    providerCostTs.loading ||
+    autofixStats.loading ||
+    statusTimeseries.loading ||
+    modelReliability.loading;
+
+  createEffect(() => {
+    if (overviewResult.loading) return;
+    if (overviewResult.error === undefined) {
+      const result = overviewResult();
+      if (result === undefined || result.scope !== overviewScope()) return;
+      if (showDashboard() && supportingDataLoading()) return;
+      setLoadedScope(result.scope);
+      return;
+    }
+    setLoadedScope(overviewScope());
+  });
+  const scopeChanging = () => loadedScope() !== overviewScope();
+
   const selfHealedTs = () => {
     const ts = statusTimeseries();
     if (!ts) return undefined;
@@ -412,10 +425,13 @@ const Overview: Component = () => {
       </div>
 
       <Show
-        when={!billing.loading && (data() !== undefined || !data.loading) && !rangeChanging()}
+        when={(data() !== undefined || !overviewResult.loading) && !scopeChanging()}
         fallback={<OverviewSkeleton />}
       >
-        <Show when={!data.error} fallback={<ErrorState error={data.error} onRetry={refetch} />}>
+        <Show
+          when={!overviewResult.error}
+          fallback={<ErrorState error={overviewResult.error} onRetry={refetch} />}
+        >
           <Show when={showEmptyState()}>
             <Show
               when={setupCompleted()}
@@ -479,13 +495,11 @@ const Overview: Component = () => {
                       </p>
                     </div>
                   </Show>
-                  <Show when={autofixEligible()}>
-                    <AutofixKpiCards
-                      stats={autofixStats()}
-                      agentName={decodeURIComponent(params.agentName)}
-                      range={effectiveRange()}
-                    />
-                  </Show>
+                  <AutofixKpiCards
+                    stats={autofixStats()}
+                    agentName={decodeURIComponent(params.agentName)}
+                    range={effectiveRange()}
+                  />
                   {(() => {
                     return (
                       <UnifiedChartCard
@@ -508,7 +522,7 @@ const Overview: Component = () => {
                             Math.min(999, Math.round(((cur - prev) / prev) * 100)),
                           );
                         })()}
-                        selfHealedTimeseries={autofixEligible() ? selfHealedTs() : undefined}
+                        selfHealedTimeseries={selfHealedTs()}
                         costValue={d().summary?.cost_today?.value ?? 0}
                         costTrendPct={d().summary?.cost_today?.trend_pct ?? 0}
                         costInfoTooltip="Actual API key costs only. Subscription usage is not included."
@@ -571,7 +585,7 @@ const Overview: Component = () => {
                   <CostByModelTable
                     rows={d().cost_by_model ?? []}
                     reliability={modelReliability()}
-                    doctorAvailable={autofixEligible()}
+                    doctorAvailable
                   />
                 </>
               );

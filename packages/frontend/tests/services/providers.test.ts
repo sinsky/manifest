@@ -8,7 +8,6 @@ import {
 } from '../../src/services/providers';
 import { validateApiKey, validateSubscriptionKey } from '../../src/services/provider-utils';
 import {
-  ROUTING_PROVIDER_API_KEY_URLS,
   EMAIL_PROVIDER_API_KEY_URLS,
   SUBSCRIPTION_PROVIDER_KEY_URLS,
   getRoutingProviderApiKeyUrl,
@@ -191,6 +190,24 @@ describe('validateApiKey', () => {
       error: 'Key is too short (minimum 50 characters)',
     });
     expect(validateApiKey(xiaomi, `sk-${'a'.repeat(47)}`)).toEqual({ valid: true });
+  });
+
+  it('validates Meta Model API key prefix and length', () => {
+    const meta = getProvider('meta')!;
+    expect(meta.keyPlaceholder).toBe('LLM_...');
+    expect(validateApiKey(meta, '')).toEqual({
+      valid: false,
+      error: 'API key is required',
+    });
+    expect(validateApiKey(meta, 'wrong-prefix-key-that-is-long-enough')).toEqual({
+      valid: false,
+      error: 'Meta keys start with "LLM_"',
+    });
+    expect(validateApiKey(meta, 'LLM_short')).toEqual({
+      valid: false,
+      error: 'Key is too short (minimum 20 characters)',
+    });
+    expect(validateApiKey(meta, `LLM_${'a'.repeat(20)}`)).toEqual({ valid: true });
   });
 
   it('validates NVIDIA NIM key length without enforcing an undocumented prefix', () => {
@@ -467,6 +484,28 @@ describe('PROVIDERS', () => {
     expect(ollama.localOnly).toBe(true);
     expect(ollama.models).toEqual([]);
     expect(ollama.minKeyLength).toBe(0);
+  });
+
+  it('exposes Gemini Free as a managed free provider', () => {
+    const provider = PROVIDERS.find((entry) => entry.id === 'gemini-free')!;
+    expect(provider.name).toBe('Gemini Free');
+    expect(provider.subtitle).toBe('Free Gemini models via Manifest');
+    expect(provider.keyPlaceholder).toBe('sk-...');
+    expect(getRoutingProviderApiKeyUrl('gemini-free')).toBe(
+      'https://calendly.com/sebastien-manifest/30min',
+    );
+  });
+
+  it('exposes the current Meta Muse Spark catalog and Contributor warning', () => {
+    const meta = PROVIDERS.find((provider) => provider.id === 'meta')!;
+    expect(meta.name).toBe('Meta');
+    expect(meta.models.map((model) => model.value)).toEqual([
+      'muse-spark-1.2',
+      'muse-spark-1.2-contributor',
+      'muse-spark-1.1',
+    ]);
+    expect(meta.models[1].label).toMatch(/may train Meta/);
+    expect(getRoutingProviderApiKeyUrl('meta')).toBe('https://dev.meta.ai/');
   });
 
   it('each provider has required fields', () => {
@@ -1003,7 +1042,7 @@ describe('PROVIDERS', () => {
         !provider.noKeyRequired &&
         !provider.deviceLogin &&
         !provider.subscriptionOnly &&
-        !ROUTING_PROVIDER_API_KEY_URLS[provider.id],
+        !getRoutingProviderApiKeyUrl(provider.id),
     ).map((provider) => provider.id);
     expect(missingProviderIds).toEqual([]);
   });

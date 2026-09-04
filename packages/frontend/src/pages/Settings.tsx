@@ -7,6 +7,7 @@ import AgentTypeGrid from '../components/AgentTypeGrid.jsx';
 import SetupStepAddProvider from '../components/SetupStepAddProvider.jsx';
 import SetupModal from '../components/SetupModal.jsx';
 import SettingsAutofixSection from './SettingsAutofixSection.jsx';
+import SettingsRecordingSection from './SettingsRecordingSection.jsx';
 import { agentDisplayName } from '../services/agent-display-name.js';
 import {
   deleteAgent,
@@ -204,7 +205,7 @@ const Settings: Component = () => {
                   alt=""
                   width="18"
                   height="18"
-                  class="settings-type__icon"
+                  class="platform-icon settings-type__icon"
                 />
               </Show>
               {currentPlatform()
@@ -226,8 +227,11 @@ const Settings: Component = () => {
         </div>
       </div>
 
-      {/* -- Auto-fix ---------------------------------- */}
+      {/* -- Autofix ---------------------------------- */}
       <SettingsAutofixSection agentName={agentName} />
+
+      {/* -- Message recording ------------------------- */}
+      <SettingsRecordingSection agentName={agentName} />
 
       {/* -- API Key ----------------------------------- */}
       <ErrorBoundary

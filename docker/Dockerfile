@@ -36,6 +36,7 @@ RUN npx turbo build --filter=manifest-backend --filter=manifest-frontend --filte
 # and CVE scanners then flag the embedded Go stdlib.
 FROM node:24-slim@sha256:24dc26ef1e3c3690f27ebc4136c9c186c3133b25563ae4d7f0692e4d1fe5db0e AS prod-deps
 WORKDIR /app
+RUN mkdir -p /app/request-recordings
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/frontend/package.json packages/frontend/
@@ -43,6 +44,7 @@ COPY packages/backend/package.json packages/backend/
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --omit=dev --omit=optional --ignore-scripts \
            --prefer-offline --no-audit --no-fund --loglevel=error && \
+    mkdir -p packages/backend/node_modules && \
     rm -rf node_modules/typescript node_modules/@types \
            node_modules/ts-node node_modules/acorn \
            node_modules/create-require node_modules/v8-compile-cache-lib && \
@@ -59,7 +61,7 @@ RUN --mount=type=cache,target=/root/.npm \
 
 # Stage 4: Distroless runtime. Runs as the built-in `nonroot` user (UID
 # 65532) by default. No shell, no apk/apt, minimal CVE surface.
-FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:b087b405441cd3e8eab9bd53ae3dd1c2b824e7ce13f25c5e9bb353fbdb3f4544 AS runtime
+FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:af85d11ce7ef10172855a6e3649e3e8125b1b9e3ca41849ec2918036f05cb212 AS runtime
 WORKDIR /app
 
 LABEL org.opencontainers.image.title="Manifest" \
@@ -79,6 +81,8 @@ ENV BIND_ADDRESS=0.0.0.0
 ENV PATH=/nodejs/bin:$PATH
 
 COPY --from=prod-deps --chown=nonroot:nonroot /app/node_modules node_modules
+COPY --from=prod-deps --chown=nonroot:nonroot /app/packages/backend/node_modules packages/backend/node_modules
+COPY --from=prod-deps --chown=nonroot:nonroot /app/request-recordings /data/request-recordings
 COPY --from=prod-deps --chown=nonroot:nonroot /app/package.json package.json
 COPY --from=build --chown=nonroot:nonroot /app/packages/shared/dist packages/shared/dist
 COPY --from=build --chown=nonroot:nonroot /app/packages/backend/dist packages/backend/dist

@@ -21,8 +21,10 @@ const mockDeleteAgent = vi.fn();
 const mockRenameAgent = vi.fn();
 const mockRotateAgentKey = vi.fn();
 const mockUpdateAgent = vi.fn();
-const mockGetAutofix = vi.fn(() => Promise.resolve({ enabled: false, available: true }));
-const mockUpdateAutofix = vi.fn(() => Promise.resolve({ enabled: false, available: true }));
+const mockGetAutofix = vi.fn(() => Promise.resolve({ enabled: false }));
+const mockUpdateAutofix = vi.fn(() => Promise.resolve({ enabled: false }));
+const mockGetRecording = vi.fn(() => Promise.resolve({ enabled: false }));
+const mockUpdateRecording = vi.fn(() => Promise.resolve({ enabled: false }));
 vi.mock("../../src/services/api.js", () => ({
   getAgentKey: (...args: unknown[]) => mockGetAgentKey(...args),
   getAgentInfo: (...args: unknown[]) => mockGetAgentInfo(...args),
@@ -32,6 +34,8 @@ vi.mock("../../src/services/api.js", () => ({
   updateAgent: (...args: unknown[]) => mockUpdateAgent(...args),
   getAutofix: (...args: unknown[]) => mockGetAutofix(...args),
   updateAutofix: (...args: unknown[]) => mockUpdateAutofix(...args),
+  getRecording: (...args: unknown[]) => mockGetRecording(...args),
+  updateRecording: (...args: unknown[]) => mockUpdateRecording(...args),
 }));
 
 vi.mock("../../src/services/toast-store.js", () => ({
@@ -95,7 +99,7 @@ vi.mock("manifest-shared", () => ({
     return icons[plat];
   },
   CATEGORY_LABELS: {
-    personal: "AI agents",
+    personal: "AI agent",
     app: "App AI SDK",
     coding: "Coding Assistant",
   },
@@ -157,6 +161,15 @@ describe("Settings", () => {
   it("renders Harness type label", () => {
     render(() => <Settings />);
     expect(screen.getByText("Harness type")).toBeDefined();
+  });
+
+  it("applies the platform-icon theming class to the harness type icon", async () => {
+    const { container } = render(() => <Settings />);
+    await vi.waitFor(() => {
+      expect(container.querySelector("img.settings-type__icon")).not.toBeNull();
+    });
+    const icon = container.querySelector("img.settings-type__icon");
+    expect(icon?.classList.contains("platform-icon")).toBe(true);
   });
 
   it("renders Change button for agent type", async () => {
@@ -430,7 +443,7 @@ describe("Settings", () => {
     const { container } = render(() => <Settings />);
     await vi.waitFor(() => {
       expect(container.textContent).toContain("OpenClaw");
-      expect(container.textContent).toContain("AI agents");
+      expect(container.textContent).toContain("AI agent");
     });
   });
 

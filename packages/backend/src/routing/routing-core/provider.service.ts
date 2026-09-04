@@ -17,7 +17,12 @@ import { AgentMessage } from '../../entities/agent-message.entity';
 import { ModelPricingCacheService } from '../../model-prices/model-pricing-cache.service';
 import { RoutingCacheService } from './routing-cache.service';
 import { randomUUID } from 'crypto';
-import { encrypt, decrypt, getEncryptionSecret } from '../../common/utils/crypto.util';
+import {
+  encrypt,
+  decryptWithAny,
+  getEncryptionSecret,
+  getDecryptionSecrets,
+} from '../../common/utils/crypto.util';
 import {
   isManifestUsableProvider,
   isSupportedSubscriptionProvider,
@@ -41,7 +46,9 @@ import {
   SubscriptionEndpointRegionConfig,
 } from '../subscription-region';
 import { filterProvidersForDeployment } from '../../common/utils/provider-availability';
+import { getManagedFreeProviderConfig } from '../../common/constants/managed-free-providers';
 
+const MAX_KEYS_MANAGED_FREE_PROVIDER = 1;
 const MAX_LABEL_LENGTH = 50;
 const DEFAULT_LABEL = 'Default';
 // Bounds for withSubscriptionCredentialLock's critical section (the provider
@@ -246,7 +253,7 @@ export class ProviderService {
     const row = rows.find((r) => r.label.toLowerCase() === wantedLabel);
     if (!row?.api_key_encrypted) return null;
     try {
-      return decrypt(row.api_key_encrypted, getEncryptionSecret());
+      return decryptWithAny(row.api_key_encrypted, getDecryptionSecrets()).plaintext;
     } catch {
       return null;
     }
@@ -304,7 +311,7 @@ export class ProviderService {
         readFreshRaw: async () => {
           if (!row?.api_key_encrypted) return null;
           try {
-            return decrypt(row.api_key_encrypted, getEncryptionSecret());
+            return decryptWithAny(row.api_key_encrypted, getDecryptionSecrets()).plaintext;
           } catch {
             return null;
           }
@@ -484,9 +491,13 @@ export class ProviderService {
     }
 
     const activeCount = existingRows.filter((r) => r.is_active).length;
-    if (activeCount >= MAX_KEYS_PER_PROVIDER) {
+    const managedFreeConfig = getManagedFreeProviderConfig(provider);
+    const maxKeys = managedFreeConfig ? MAX_KEYS_MANAGED_FREE_PROVIDER : MAX_KEYS_PER_PROVIDER;
+    if (activeCount >= maxKeys) {
       throw new BadRequestException(
-        `You can connect at most ${MAX_KEYS_PER_PROVIDER} keys per provider`,
+        maxKeys === 1
+          ? `You can connect at most 1 key for ${managedFreeConfig!.displayName}`
+          : `You can connect at most ${maxKeys} keys per provider`,
       );
     }
 
@@ -690,7 +701,7 @@ export class ProviderService {
     if (!existing?.api_key_encrypted) return null;
 
     try {
-      return decrypt(existing.api_key_encrypted, getEncryptionSecret());
+      return decryptWithAny(existing.api_key_encrypted, getDecryptionSecrets()).plaintext;
     } catch {
       this.logger.warn('Failed to decrypt API key while auto-detecting Alibaba region');
       return null;
@@ -1365,7 +1376,7 @@ export class ProviderService {
 
   private decryptOrNull(encrypted: string): string | null {
     try {
-      return decrypt(encrypted, getEncryptionSecret());
+      return decryptWithAny(encrypted, getDecryptionSecrets()).plaintext;
     } catch {
       return null;
     }
