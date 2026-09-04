@@ -96,7 +96,7 @@
 --z-toast: 8000
 --z-tooltip: 9999
 
-## Blocks (314 BEM blocks, 1696 classes)
+## Blocks (314 BEM blocks, 1697 classes)
 account-back-btn (agents.css): account-back-btn
 account-email-footer (agents.css): account-email-footer
 account-email-toggle (agents.css): account-email-toggle--disabled
@@ -130,7 +130,7 @@ auth-header (auth.css): auth-header auth-header__subtitle auth-header__title
 auth-last-used (auth.css): auth-last-used
 auth-layout (auth.css): auth-layout
 auth-logo (auth.css): auth-logo auth-logo__img auth-logo__img--dark auth-logo__img--light auth-logo__link
-auth-social-btn (auth.css): auth-social-btn auth-social-btn--discord auth-social-btn--github auth-social-btn--google auth-social-btn__icon
+auth-social-btn (auth.css): auth-social-btn auth-social-btn--discord auth-social-btn--github auth-social-btn--google auth-social-btn--oidc auth-social-btn__icon
 auth-social-group (auth.css): auth-social-group
 auth-terms (auth.css): auth-terms auth-terms__link
 autofix-card (data.css): autofix-card autofix-card--autofix autofix-card--fallback autofix-card__branding autofix-card__header autofix-card__ids autofix-card__op autofix-card__op-desc autofix-card__op-type autofix-card__ops autofix-card__phrase autofix-card__sibling-btn autofix-card__title
@@ -429,9 +429,9 @@ workspace-table (agents.css): workspace-table__actions workspace-table__icon wor
 .setup-modal__next:hover { opacity: 0.85 }  ← overview.css:55
 .tier-badge--fallback { background: hsl(38 92% 50% / 0.15) }  ← overview.css:194
 .tier-badge--fallback { color: hsl(38 92% 40%) }  ← overview.css:195
-.request-tool { border: 1px solid hsl(36 80% 50% / 0.24) }  ← request-drawer.css:874
-.request-tool { border-radius: var(--radius-sm) }  ← request-drawer.css:875
-.request-tool { background: hsl(36 80% 50% / 0.04) }  ← request-drawer.css:876
+.request-tool { border: 1px solid hsl(36 80% 50% / 0.24) }  ← request-drawer.css:894
+.request-tool { border-radius: var(--radius-sm) }  ← request-drawer.css:895
+.request-tool { background: hsl(36 80% 50% / 0.04) }  ← request-drawer.css:896
 .hljs-attr { color: hsl(var(--chart-4)) }  ← syntax-highlight.css:41
 .summary-card { box-shadow: rgba(0, 0, 0, 0.08) 0px 0px 0px 1px }  ← theme.css:197
 .trend--up { color: hsl(var(--success)) }  ← theme.css:238
@@ -507,10 +507,10 @@ workspace-table (agents.css): workspace-table__actions workspace-table__icon wor
 .setup-modal__next { color: hsl(var(--primary-foreground)) }  at modals.css:101 loses to overview.css:46
 .setup-modal__next { background: hsl(var(--primary)) }  at modals.css:102 loses to overview.css:45
 .setup-modal__next:hover { opacity: 0.9 }  at modals.css:110 loses to overview.css:55
-.request-tool { border: 1px solid hsl(var(--border)) }  at request-drawer.css:646 loses to request-drawer.css:874
-.request-tool { border-radius: var(--radius) }  at request-drawer.css:647 loses to request-drawer.css:875
-.request-tool { background: hsl(var(--card)) }  at request-drawer.css:648 loses to request-drawer.css:876
-.hljs-attr { color: hsl(187 60% 38%) }  at request-drawer.css:1054 loses to syntax-highlight.css:41
+.request-tool { border: 1px solid hsl(var(--border)) }  at request-drawer.css:646 loses to request-drawer.css:894
+.request-tool { border-radius: var(--radius) }  at request-drawer.css:647 loses to request-drawer.css:895
+.request-tool { background: hsl(var(--card)) }  at request-drawer.css:648 loses to request-drawer.css:896
+.hljs-attr { color: hsl(187 60% 38%) }  at request-drawer.css:1074 loses to syntax-highlight.css:41
 .welcome__progress-header span { letter-spacing: 0.09em }  at welcome.css:548 loses to welcome.css:554
 .welcome__text-link:focus-visible { outline: 3px solid hsl(var(--ring)) }  at welcome.css:726 loses to welcome.css:865
 .welcome__text-link:focus-visible { outline-offset: 2px }  at welcome.css:727 loses to welcome.css:866

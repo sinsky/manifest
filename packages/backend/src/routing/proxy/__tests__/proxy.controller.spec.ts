@@ -144,7 +144,8 @@ describe('ProxyController', () => {
   let mockPricingCache: { getByModel: jest.Mock };
   let modelDiscovery: { getModelsForAgent: jest.Mock };
   let providerParamSpecs: { getCapabilities: jest.Mock };
-  let modelsDevSync: { lookupModelCapabilities: jest.Mock };
+  let modelsDevSync: { lookupModel: jest.Mock; lookupModelCapabilities: jest.Mock };
+  let headerTierService: { list: jest.Mock };
   let recorder: ProxyMessageRecorder;
   let planService: { assertWithinRequestLimit: jest.Mock };
   let observationReporter: { report: jest.Mock };
@@ -188,7 +189,11 @@ describe('ProxyController', () => {
       getModelsForAgent: jest.fn().mockResolvedValue([]),
     };
     providerParamSpecs = { getCapabilities: jest.fn().mockResolvedValue(null) };
-    modelsDevSync = { lookupModelCapabilities: jest.fn().mockReturnValue(null) };
+    modelsDevSync = {
+      lookupModel: jest.fn().mockReturnValue(null),
+      lookupModelCapabilities: jest.fn().mockReturnValue(null),
+    };
+    headerTierService = { list: jest.fn().mockResolvedValue([]) };
     observationReporter = { report: jest.fn() };
     recordingConfig = { isRecording: jest.fn().mockResolvedValue(false) };
     attemptRecording = {
@@ -228,6 +233,7 @@ describe('ProxyController', () => {
       observationReporter as never,
       providerParamSpecs as never,
       modelsDevSync as never,
+      headerTierService as never,
       recordingConfig as never,
       attemptRecording as never,
     );
@@ -319,6 +325,83 @@ describe('ProxyController', () => {
         { id: 'openai/gpt-4o', object: 'model', created: 0, owned_by: 'openai' },
       ],
     });
+  });
+
+  // Header Tier names are advertised as model ids so OpenAI-compatible agents
+  // can pick a UI-configured tier (`free`, `smart`, …) the same way they pick
+  // `auto`. They advertise operator intent, not a concrete upstream model,
+  // so they carry no capability or cost metadata and are listed ahead of
+  // discovered models so a tier name wins over a bare-model collision in
+  // routeForOpenAiModelId.
+  it('should advertise enabled Header Tier names as model ids, between auto and discovered models', async () => {
+    modelDiscovery.getModelsForAgent.mockResolvedValue([
+      makeDiscoveredModel({ id: 'gpt-4o', provider: 'openai', authType: 'api_key' }),
+    ]);
+    headerTierService.list.mockResolvedValue([
+      {
+        id: 'ht-free',
+        name: 'free',
+        enabled: true,
+        badge_color: 'green',
+      },
+      {
+        id: 'ht-smart',
+        name: 'smart',
+        enabled: true,
+        badge_color: 'indigo',
+      },
+      {
+        id: 'ht-disabled',
+        name: 'disabled-tier',
+        enabled: false,
+        badge_color: 'gray',
+      },
+    ]);
+
+    await expect(controller.models(mockRequest({}) as never)).resolves.toEqual({
+      object: 'list',
+      data: [
+        { id: 'auto', object: 'model', created: 0, owned_by: 'manifest' },
+        { id: 'free', object: 'model', created: 0, owned_by: 'manifest' },
+        { id: 'smart', object: 'model', created: 0, owned_by: 'manifest' },
+        { id: 'openai/gpt-4o', object: 'model', created: 0, owned_by: 'openai' },
+      ],
+    });
+    expect(headerTierService.list).toHaveBeenCalledWith('agent-1');
+  });
+
+  it('should keep /v1/models working when HeaderTierService.list rejects', async () => {
+    modelDiscovery.getModelsForAgent.mockResolvedValue([
+      makeDiscoveredModel({ id: 'gpt-4o', provider: 'openai', authType: 'api_key' }),
+    ]);
+    headerTierService.list.mockRejectedValue(new Error('db down'));
+
+    await expect(controller.models(mockRequest({}) as never)).resolves.toEqual({
+      object: 'list',
+      data: [
+        { id: 'auto', object: 'model', created: 0, owned_by: 'manifest' },
+        { id: 'openai/gpt-4o', object: 'model', created: 0, owned_by: 'openai' },
+      ],
+    });
+  });
+
+  it('should de-duplicate a tier name that collides with auto or a discovered model id', async () => {
+    modelDiscovery.getModelsForAgent.mockResolvedValue([
+      makeDiscoveredModel({ id: 'gpt-4o', provider: 'openai', authType: 'api_key' }),
+    ]);
+    headerTierService.list.mockResolvedValue([
+      { id: 'ht-auto', name: 'auto', enabled: true, badge_color: 'green' },
+      { id: 'ht-gpt', name: 'openai/gpt-4o', enabled: true, badge_color: 'indigo' },
+      { id: 'ht-free', name: 'free', enabled: true, badge_color: 'blue' },
+    ]);
+
+    const result = await controller.models(mockRequest({}) as never);
+    const ids = result.data.map((m) => m.id);
+    // `auto` (reserved) and `openai/gpt-4o` (discovered id) are deduplicated
+    // against the existing entries; `free` is the surviving tier name. The
+    // discovered-models loop then finds `openai/gpt-4o` already in `seen` and
+    // skips it, leaving exactly these three ids.
+    expect(ids).toEqual(['auto', 'openai/gpt-4o', 'free']);
   });
 
   it('should expose provider-native route metadata when requested', async () => {

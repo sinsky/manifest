@@ -442,6 +442,85 @@ describe('ResolveService', () => {
     });
   });
 
+  describe('resolveHeaderTierByName — model field × UI tier match', () => {
+    it('routes by tier name when an enabled tier matches case-insensitively', async () => {
+      const tier = {
+        id: 'h1',
+        name: 'Smart',
+        header_key: 'x-tier',
+        header_value: 'smart',
+        enabled: true,
+        badge_color: 'blue',
+        override_route: route('anthropic', 'api_key', 'claude-3-5-sonnet'),
+        fallback_routes: null,
+      } as unknown as HeaderTier;
+      headerTierService.list.mockResolvedValue([tier]);
+
+      const result = await svc.resolveHeaderTierByName('agent-1', 'user-1', 'smart');
+
+      expect(result).not.toBeNull();
+      expect(result!.reason).toBe('header-match');
+      expect(result!.route).toEqual(route('anthropic', 'api_key', 'claude-3-5-sonnet'));
+      expect(result!.header_tier_id).toBe('h1');
+      expect(result!.header_tier_name).toBe('Smart');
+      expect(result!.header_tier_color).toBe('blue');
+    });
+
+    it('returns null when no enabled tier carries the name', async () => {
+      const tier = {
+        id: 'h1',
+        name: 'Smart',
+        header_key: 'x-tier',
+        header_value: 'smart',
+        enabled: true,
+        badge_color: 'blue',
+        override_route: route('anthropic', 'api_key', 'claude-3-5-sonnet'),
+        fallback_routes: null,
+      } as unknown as HeaderTier;
+      headerTierService.list.mockResolvedValue([tier]);
+
+      const result = await svc.resolveHeaderTierByName('agent-1', 'user-1', 'free');
+
+      expect(result).toBeNull();
+    });
+
+    it('skips disabled tiers', async () => {
+      const tier = {
+        id: 'h1',
+        name: 'Smart',
+        header_key: 'x-tier',
+        header_value: 'smart',
+        enabled: false,
+        badge_color: 'blue',
+        override_route: route('anthropic', 'api_key', 'claude-3-5-sonnet'),
+        fallback_routes: null,
+      } as unknown as HeaderTier;
+      headerTierService.list.mockResolvedValue([tier]);
+
+      const result = await svc.resolveHeaderTierByName('agent-1', 'user-1', 'smart');
+
+      expect(result).toBeNull();
+    });
+
+    it('falls through when the matched tier has no override route', async () => {
+      const tier = {
+        id: 'h1',
+        name: 'Smart',
+        header_key: 'x-tier',
+        header_value: 'smart',
+        enabled: true,
+        badge_color: 'blue',
+        override_route: null,
+        fallback_routes: null,
+      } as unknown as HeaderTier;
+      headerTierService.list.mockResolvedValue([tier]);
+
+      const result = await svc.resolveHeaderTierByName('agent-1', 'user-1', 'smart');
+
+      expect(result).toBeNull();
+    });
+  });
+
   describe('resolveProviderForModel paths (via header tier with bare model)', () => {
     // Provider field is empty (falsy) so resolveProviderForModel runs via the
     // `||` short-circuit. authType is a real value so the route can be built

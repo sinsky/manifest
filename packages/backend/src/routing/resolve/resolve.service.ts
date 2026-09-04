@@ -256,13 +256,57 @@ export class ResolveService {
     tenantId: string,
     headers: IncomingHttpHeaders,
   ): Promise<ResolveResponse | null> {
-    const allTiers = await this.headerTierService.list(agentId);
-    const tiers = allTiers.filter((t) => t.enabled);
-    if (tiers.length === 0) return null;
-
-    const match = tiers.find((t) => matchesHeaderRule(headers, t));
+    const match = await this.findEnabledHeaderTier(agentId, (t) => matchesHeaderRule(headers, t));
     if (!match) return null;
+    return this.buildHeaderTierResolveResponse(agentId, tenantId, match);
+  }
 
+  /**
+   * Resolve a request whose `model` field names a Header Tier instead of a
+   * concrete model id. The `/v1/models` endpoint advertises tier names, so
+   * OpenAI-compatible agents can pick a UI-configured tier (`"smart"`,
+   * `"free"`, …) the same way they pick `auto` or a discovered model.
+   *
+   * Matching is case-insensitive: {@link HeaderTierService} enforces
+   * case-insensitive name uniqueness, so two tiers cannot collide on the same
+   * name with different casing.
+   *
+   * Returns null when no enabled tier carries the name, and when the matched
+   * tier has no available route — both mean "keep looking" (usually the
+   * discovered-model fallback in `resolveExplicitModel`).
+   */
+  async resolveHeaderTierByName(
+    agentId: string,
+    tenantId: string,
+    name: string,
+  ): Promise<ResolveResponse | null> {
+    const needle = name.toLowerCase();
+    const match = await this.findEnabledHeaderTier(agentId, (t) => t.name.toLowerCase() === needle);
+    if (!match) return null;
+    return this.buildHeaderTierResolveResponse(agentId, tenantId, match);
+  }
+
+  private async findEnabledHeaderTier(
+    agentId: string,
+    predicate: (tier: HeaderTier) => boolean,
+  ): Promise<HeaderTier | null> {
+    const allTiers = await this.headerTierService.list(agentId);
+    const enabled = allTiers.filter((t) => t.enabled);
+    if (enabled.length === 0) return null;
+    return enabled.find(predicate) ?? null;
+  }
+
+  /**
+   * Build the {@link ResolveResponse} for a matched header tier — the route,
+   * fallbacks, and stamped tier identity are the same whether the tier was
+   * matched by header rule or by name. Returns null when the tier has no
+   * available route so callers fall through to the next resolver.
+   */
+  private async buildHeaderTierResolveResponse(
+    agentId: string,
+    tenantId: string,
+    match: HeaderTier,
+  ): Promise<ResolveResponse | null> {
     const overrideRoute = readOverrideRoute(match);
     if (!overrideRoute) {
       this.logger.debug(

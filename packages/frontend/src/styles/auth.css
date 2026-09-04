@@ -288,6 +288,9 @@
 .auth-social-btn--discord:hover {
   border-color: #5865f2;
 }
+.auth-social-btn--oidc:hover {
+  border-color: #6d28d9;
+}
 
 /* ── "Last used" badge ───────────────────────────── */
 .auth-last-used {
