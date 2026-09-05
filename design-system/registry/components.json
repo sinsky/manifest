@@ -660,6 +660,7 @@
         "auth-social-btn--discord",
         "auth-social-btn--github",
         "auth-social-btn--google",
+        "auth-social-btn--oidc",
         "auth-social-btn__icon"
       ],
       "files": [
@@ -4408,21 +4409,21 @@
       "prop": "border",
       "value": "1px solid hsl(36 80% 50% / 0.24)",
       "file": "request-drawer.css",
-      "line": 874
+      "line": 894
     },
     {
       "selector": ".request-tool",
       "prop": "border-radius",
       "value": "var(--radius-sm)",
       "file": "request-drawer.css",
-      "line": 875
+      "line": 895
     },
     {
       "selector": ".request-tool",
       "prop": "background",
       "value": "hsl(36 80% 50% / 0.04)",
       "file": "request-drawer.css",
-      "line": 876
+      "line": 896
     },
     {
       "selector": ".hljs-attr",
@@ -4959,7 +4960,7 @@
       "value": "1px solid hsl(var(--border))",
       "file": "request-drawer.css",
       "line": 646,
-      "losesTo": "request-drawer.css:874"
+      "losesTo": "request-drawer.css:894"
     },
     {
       "selector": ".request-tool",
@@ -4967,7 +4968,7 @@
       "value": "var(--radius)",
       "file": "request-drawer.css",
       "line": 647,
-      "losesTo": "request-drawer.css:875"
+      "losesTo": "request-drawer.css:895"
     },
     {
       "selector": ".request-tool",
@@ -4975,14 +4976,14 @@
       "value": "hsl(var(--card))",
       "file": "request-drawer.css",
       "line": 648,
-      "losesTo": "request-drawer.css:876"
+      "losesTo": "request-drawer.css:896"
     },
     {
       "selector": ".hljs-attr",
       "prop": "color",
       "value": "hsl(187 60% 38%)",
       "file": "request-drawer.css",
-      "line": 1054,
+      "line": 1074,
       "losesTo": "syntax-highlight.css:41"
     },
     {
@@ -5108,7 +5109,7 @@
     "tokens": 79,
     "darkOverrides": 38,
     "blocks": 315,
-    "classes": 1711,
+    "classes": 1712,
     "canonicalRules": 46,
     "ghostRules": 46
   }
