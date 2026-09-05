@@ -363,7 +363,7 @@ jobs:
           fi
           IMAGE_NOTE="Docker image: \`${HOST}/${OWNER_LC}/manifest:${VERSION}\`"
 
-          BODY="Sinsky release branch \`${BRANCH_NAME}\` (Forgejo). Base version: upstream manifest@${BASE}. Custom ref: \`${CUSTOM_REF}\` at \`${CUSTOM_SHA}\`. ${IMAGE_NOTE}. See upstream changelog for details."
+          BODY="Sinsky release branch \`${BRANCH_NAME}\` (Forgejo). Base version: upstream [manifest@${BASE}](https://github.com/mnfst/manifest/releases/tag/manifest@${BASE}). Custom ref: \`${CUSTOM_REF}\` at \`${CUSTOM_SHA}\`. ${IMAGE_NOTE}. See the upstream release page for the full changelog."
           PAYLOAD=$(TAG="$TAG" NAME="manifest v${VERSION}" BODY="$BODY" node -e '
             const p = {
               tag_name: process.env.TAG,
