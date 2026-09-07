@@ -460,7 +460,8 @@
         "agent-filter-select__trigger"
       ],
       "files": [
-        "filter-select.css"
+        "filter-select.css",
+        "theme.css"
       ]
     },
     "agent-type-select": {
@@ -935,6 +936,7 @@
       ],
       "files": [
         "layout.css",
+        "routing.css",
         "theme.css"
       ]
     },
@@ -2378,18 +2380,6 @@
       ],
       "files": [
         "agents.css"
-      ]
-    },
-    "overview-discovery-banner": {
-      "classes": [
-        "overview-discovery-banner",
-        "overview-discovery-banner__cta",
-        "overview-discovery-banner__dismiss",
-        "overview-discovery-banner__inner",
-        "overview-discovery-banner__text"
-      ],
-      "files": [
-        "overview.css"
       ]
     },
     "overview-split": {
@@ -4133,25 +4123,6 @@
         "modals.css"
       ]
     },
-    "user-discovery-modal": {
-      "classes": [
-        "user-discovery-modal",
-        "user-discovery-modal__banner",
-        "user-discovery-modal__banner-img",
-        "user-discovery-modal__body",
-        "user-discovery-modal__close",
-        "user-discovery-modal__cta",
-        "user-discovery-modal__features",
-        "user-discovery-modal__highlight",
-        "user-discovery-modal__later",
-        "user-discovery-modal__subtitle",
-        "user-discovery-modal__title",
-        "user-discovery-modal__title-logo"
-      ],
-      "files": [
-        "modals.css"
-      ]
-    },
     "version-indicator": {
       "classes": [
         "version-indicator",
@@ -4395,35 +4366,35 @@
       "prop": "background",
       "value": "hsl(38 92% 50% / 0.15)",
       "file": "overview.css",
-      "line": 194
+      "line": 105
     },
     {
       "selector": ".tier-badge--fallback",
       "prop": "color",
       "value": "hsl(38 92% 40%)",
       "file": "overview.css",
-      "line": 195
+      "line": 106
     },
     {
       "selector": ".request-tool",
       "prop": "border",
       "value": "1px solid hsl(36 80% 50% / 0.24)",
       "file": "request-drawer.css",
-      "line": 894
+      "line": 918
     },
     {
       "selector": ".request-tool",
       "prop": "border-radius",
       "value": "var(--radius-sm)",
       "file": "request-drawer.css",
-      "line": 895
+      "line": 919
     },
     {
       "selector": ".request-tool",
       "prop": "background",
       "value": "hsl(36 80% 50% / 0.04)",
       "file": "request-drawer.css",
-      "line": 896
+      "line": 920
     },
     {
       "selector": ".hljs-attr",
@@ -4840,7 +4811,7 @@
       "value": "hsl(var(--muted-foreground) / 0.1)",
       "file": "data.css",
       "line": 299,
-      "losesTo": "overview.css:194"
+      "losesTo": "overview.css:105"
     },
     {
       "selector": ".tier-badge--fallback",
@@ -4848,7 +4819,7 @@
       "value": "hsl(var(--muted-foreground))",
       "file": "data.css",
       "line": 300,
-      "losesTo": "overview.css:195"
+      "losesTo": "overview.css:106"
     },
     {
       "selector": ".feed-item",
@@ -4959,31 +4930,31 @@
       "prop": "border",
       "value": "1px solid hsl(var(--border))",
       "file": "request-drawer.css",
-      "line": 646,
-      "losesTo": "request-drawer.css:894"
+      "line": 670,
+      "losesTo": "request-drawer.css:918"
     },
     {
       "selector": ".request-tool",
       "prop": "border-radius",
       "value": "var(--radius)",
       "file": "request-drawer.css",
-      "line": 647,
-      "losesTo": "request-drawer.css:895"
+      "line": 671,
+      "losesTo": "request-drawer.css:919"
     },
     {
       "selector": ".request-tool",
       "prop": "background",
       "value": "hsl(var(--card))",
       "file": "request-drawer.css",
-      "line": 648,
-      "losesTo": "request-drawer.css:896"
+      "line": 672,
+      "losesTo": "request-drawer.css:920"
     },
     {
       "selector": ".hljs-attr",
       "prop": "color",
       "value": "hsl(187 60% 38%)",
       "file": "request-drawer.css",
-      "line": 1074,
+      "line": 1098,
       "losesTo": "syntax-highlight.css:41"
     },
     {
@@ -5108,8 +5079,8 @@
   "stats": {
     "tokens": 79,
     "darkOverrides": 38,
-    "blocks": 315,
-    "classes": 1712,
+    "blocks": 313,
+    "classes": 1695,
     "canonicalRules": 46,
     "ghostRules": 46
   }
