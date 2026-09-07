@@ -257,6 +257,7 @@
 }
 
 .drawer__tabs-full.panel__tabs::-webkit-scrollbar {
+  display: block;
   height: 3px;
 }
 

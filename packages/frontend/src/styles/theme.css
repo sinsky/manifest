@@ -1259,9 +1259,12 @@ h6 {
   .chart-card__filters .agent-filter-select__trigger {
     width: 100%;
   }
-  .header__dropdown {
+  .header__gear .header__dropdown {
+    /* Anchor to the viewport so short harness names cannot push the menu off-screen. */
+    position: fixed;
+    top: var(--header-height);
     left: auto !important;
-    right: 0 !important;
+    right: var(--gap-md) !important;
   }
   input,
   textarea,
