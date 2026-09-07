@@ -136,6 +136,7 @@ describe('ProxyController streaming abort', () => {
         lookupModel: jest.fn().mockReturnValue(null),
         lookupModelCapabilities: jest.fn().mockReturnValue(null),
       } as never,
+      { list: jest.fn().mockResolvedValue([]) } as never,
     );
   });
 
