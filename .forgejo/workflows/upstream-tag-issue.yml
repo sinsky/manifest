@@ -1,0 +1,160 @@
+name: Report new upstream tags
+
+# Detect upstream Manifest releases that have not reached origin/main yet and
+# open one tracking issue per tag. Closed issues count as already reported, so
+# reruns never recreate an issue for the same upstream tag.
+#
+# Forgejo runs scheduled workflows from the repository's default branch. Keep
+# this workflow on the default branch for the daily schedule to remain active.
+
+on:
+  schedule:
+    - cron: '15 0 * * *' # Daily at 00:15 UTC (09:15 JST)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  report:
+    name: Find tags missing from main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Create an issue for each new upstream tag
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ forgejo.repository }}
+          SERVER: ${{ forgejo.server_url }}
+          UPSTREAM_REPOSITORY: https://github.com/mnfst/manifest
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TOKEN}" ] || [ -z "${REPO}" ] || [ -z "${SERVER}" ]; then
+            echo "::error::Forgejo token or repository context is unavailable."
+            exit 1
+          fi
+
+          if ! git remote get-url upstream >/dev/null 2>&1; then
+            git remote add upstream "${UPSTREAM_REPOSITORY}.git"
+          fi
+
+          git fetch origin main --quiet
+          git fetch upstream --tags --quiet
+
+          mapfile -t UPSTREAM_TAGS < <(
+            git ls-remote --tags --refs upstream 'refs/tags/manifest@*' |
+              awk '{sub("refs/tags/", "", $2); print $2}' |
+              sort -V
+          )
+
+          if [ "${#UPSTREAM_TAGS[@]}" -eq 0 ]; then
+            echo "::error::No manifest@* tags were found on upstream."
+            exit 1
+          fi
+
+          MAIN_REF=origin/main
+          MAIN_SHA=$(git rev-parse "${MAIN_REF}^{commit}")
+          BASE_TAG=''
+
+          for tag in "${UPSTREAM_TAGS[@]}"; do
+            if git merge-base --is-ancestor "${tag}^{commit}" "${MAIN_REF}"; then
+              BASE_TAG="${tag}"
+            fi
+          done
+
+          CREATED=0
+          SKIPPED=0
+
+          for tag in "${UPSTREAM_TAGS[@]}"; do
+            TAG_SHA=$(git rev-parse "${tag}^{commit}")
+            if git merge-base --is-ancestor "${TAG_SHA}" "${MAIN_REF}"; then
+              continue
+            fi
+
+            MARKER="<!-- upstream-tag:${tag} -->"
+            SEARCH=$(curl -fsS -G \
+              -H "Authorization: token ${TOKEN}" \
+              --data-urlencode 'state=all' \
+              --data-urlencode 'type=issues' \
+              --data-urlencode "q=${tag}" \
+              --data-urlencode 'limit=100' \
+              "${SERVER}/api/v1/repos/${REPO}/issues")
+
+            EXISTS=$(printf '%s' "${SEARCH}" | MARKER="${MARKER}" node -e '
+              const fs = require("fs");
+              const marker = process.env.MARKER;
+              const issues = JSON.parse(fs.readFileSync(0, "utf8"));
+              process.stdout.write(issues.some((issue) => (issue.body || "").includes(marker)) ? "true" : "false");
+            ')
+
+            if [ "${EXISTS}" = 'true' ]; then
+              echo "Issue for ${tag} already exists; skipping."
+              SKIPPED=$((SKIPPED + 1))
+              continue
+            fi
+
+            RELEASE_URL="${UPSTREAM_REPOSITORY}/releases/tag/${tag}"
+            if [ -n "${BASE_TAG}" ]; then
+              COMPARE_URL="${UPSTREAM_REPOSITORY}/compare/${BASE_TAG}...${tag}"
+              COMPARE_LINE="- upstream差分: ${COMPARE_URL}"
+            else
+              COMPARE_LINE='- upstream差分: mainに取り込み済みのupstreamタグを特定できませんでした'
+            fi
+
+            TITLE="[Upstream] ${tag} がリリースされました"
+            PAYLOAD=$( \
+              TITLE="${TITLE}" \
+              MARKER="${MARKER}" \
+              TAG="${tag}" \
+              RELEASE_URL="${RELEASE_URL}" \
+              TAG_SHA="${TAG_SHA}" \
+              MAIN_SHA="${MAIN_SHA}" \
+              COMPARE_LINE="${COMPARE_LINE}" \
+              node -e '
+              const body = [
+                process.env.MARKER,
+                "",
+                "upstreamで新しいManifestタグが公開されました。originの `main` にはまだ取り込まれていません。",
+                "",
+                `- タグ: [\`${process.env.TAG}\`](${process.env.RELEASE_URL})`,
+                `- upstream commit: \`${process.env.TAG_SHA}\``,
+                `- origin/main commit: \`${process.env.MAIN_SHA}\``,
+                process.env.COMPARE_LINE,
+                "",
+                "## 取り込みチェックリスト",
+                "",
+                "- [ ] `upstream/main` とタグの内容を確認する",
+                "- [ ] `main` にupstreamの変更を取り込む",
+                "- [ ] 競合を解消し、`npm run build` と `npm test` を実行する",
+                "- [ ] `custom/next` にupstreamの変更を取り込み、originへpushする",
+                "- [ ] `release-version.yml` をdispatchしてリリースを実行する",
+                "",
+                "このIssueはForgejo Actionsによって自動作成されました。",
+              ].join("\n");
+              process.stdout.write(JSON.stringify({
+                title: process.env.TITLE,
+                body,
+              }));
+            ')
+
+            RESPONSE=$(curl -fsS -X POST \
+              -H "Authorization: token ${TOKEN}" \
+              -H 'Content-Type: application/json' \
+              -d "${PAYLOAD}" \
+              "${SERVER}/api/v1/repos/${REPO}/issues")
+
+            printf '%s' "${RESPONSE}" | node -e '
+              const fs = require("fs");
+              const issue = JSON.parse(fs.readFileSync(0, "utf8"));
+              console.log(`Created issue #${issue.number}: ${issue.html_url}`);
+            '
+            CREATED=$((CREATED + 1))
+          done
+
+          echo "Created ${CREATED} issue(s); skipped ${SKIPPED} existing issue(s)."

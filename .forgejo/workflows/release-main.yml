@@ -1,0 +1,113 @@
+name: Release Main (Latest / SHA)
+
+# Enable OpenID Connect ID token / JWT generation for Authorized Integrations
+enable-openid-connect: true
+
+# Sinsky main branch build workflow for Forgejo container registry.
+#
+# Builds and publishes Docker images based directly on the latest `main` branch.
+# Generates tags:
+#   - `latest-<suffix>` (e.g. `latest-sinsky`)
+#   - `sha-<short_commit_hash>` (e.g. `sha-0b4356c`)
+
+on:
+  workflow_dispatch:
+    inputs:
+      suffix:
+        description: "Optional suffix override for this run. Leave blank to use VERSION_SUFFIX, falling back to 'sinsky'."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  DEFAULT_SUFFIX: sinsky
+
+jobs:
+  publish-docker:
+    name: Build & publish Docker image (Main / Latest)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve metadata and tags
+        id: meta_resolve
+        env:
+          INPUT_SUFFIX: ${{ inputs.suffix }}
+          REPO_SUFFIX: ${{ vars.VERSION_SUFFIX }}
+          DEFAULT_SUFFIX: ${{ env.DEFAULT_SUFFIX }}
+          SERVER: ${{ forgejo.server_url }}
+          OWNER: ${{ forgejo.repository_owner }}
+          REPO_REGISTRY: ${{ vars.HOST_FORGEJO_REGISTRY }}
+        run: |
+          SUFFIX="${INPUT_SUFFIX:-${REPO_SUFFIX:-$DEFAULT_SUFFIX}}"
+          SHORT_SHA=$(git rev-parse --short=7 HEAD)
+
+          if [ -n "$REPO_REGISTRY" ]; then
+            HOST="$(printf '%s' "$REPO_REGISTRY" | sed -E 's#^[a-z]+://##' | tr '[:upper:]' '[:lower:]')"
+          else
+            HOST="$(printf '%s' "$SERVER" | sed -E 's#^[a-z]+://##' | tr '[:upper:]' '[:lower:]')"
+          fi
+          OWNER_LC="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+          IMAGE="${HOST}/${OWNER_LC}/manifest"
+
+          TAG_LATEST="${IMAGE}:latest-${SUFFIX}"
+          TAG_SHA="${IMAGE}:sha-${SHORT_SHA}"
+
+          echo "registry=$HOST" >> "$GITHUB_OUTPUT"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "tag_latest=$TAG_LATEST" >> "$GITHUB_OUTPUT"
+          echo "tag_sha=$TAG_SHA" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "suffix=$SUFFIX" >> "$GITHUB_OUTPUT"
+
+          echo "Image Base: $IMAGE"
+          echo "Tag 1: $TAG_LATEST"
+          echo "Tag 2: $TAG_SHA"
+
+      - uses: docker/setup-qemu-action@v4
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Fetch JWT for Authorized Integration
+        id: jwt
+        env:
+          AUD: u:1:5e11475e-5bf3-4769-8e66-1b2eb3fcd1a0
+        run: |
+          res=$(curl --fail -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUD")
+          jwt=$(echo "$res" | node -e 'const fs=require("fs"); process.stdout.write(JSON.parse(fs.readFileSync(0, "utf-8")).value);' 2>/dev/null || echo "$res" | jq -r ".value")
+          echo "::add-mask::$jwt"
+          echo "jwt=$jwt" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Forgejo container registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ steps.meta_resolve.outputs.registry }}
+          username: ${{ forgejo.actor }}
+          password: ${{ steps.jwt.outputs.jwt }}
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.meta_resolve.outputs.tag_latest }}
+            ${{ steps.meta_resolve.outputs.tag_sha }}
+          provenance: mode=max
+
+      - name: Inspect published image
+        env:
+          TAG_LATEST: ${{ steps.meta_resolve.outputs.tag_latest }}
+        run: |
+          docker buildx imagetools inspect "$TAG_LATEST"

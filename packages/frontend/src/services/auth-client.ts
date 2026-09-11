@@ -1,8 +1,11 @@
 import { createAuthClient } from 'better-auth/solid';
+import { genericOAuthClient } from 'better-auth/client/plugins';
 import { stripeClient } from '@better-auth/stripe/client';
 
 // The stripe client plugin widens the client with a `subscription` namespace
-// (upgrade/cancel/billingPortal/list) that the billing UI calls.
+// (upgrade/cancel/billingPortal/list) that the billing UI calls. The generic
+// OAuth client plugin adds `signIn.oauth2`, which the login page uses for the
+// generic OIDC provider.
 //
 // The explicit annotation is required because `declaration: true` demands a
 // portable type: the *inferred* type reaches into private dist chunks of
@@ -12,10 +15,13 @@ import { stripeClient } from '@better-auth/stripe/client';
 // typed. Keep the annotation's plugin options in sync with the call below.
 export const authClient: ReturnType<
   typeof createAuthClient<{
-    plugins: [ReturnType<typeof stripeClient<{ subscription: true }>>];
+    plugins: [
+      ReturnType<typeof stripeClient<{ subscription: true }>>,
+      ReturnType<typeof genericOAuthClient>,
+    ];
   }>
 > = createAuthClient({
   baseURL: window.location.origin,
   basePath: '/api/auth',
-  plugins: [stripeClient({ subscription: true })],
+  plugins: [stripeClient({ subscription: true }), genericOAuthClient()],
 });

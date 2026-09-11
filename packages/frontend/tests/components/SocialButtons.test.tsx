@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@solidjs/testing-library';
 
 const mockSignInSocial = vi.fn();
+const mockSignInOauth2 = vi.fn();
 let mockSearchParams: Record<string, string> = {};
 
 vi.mock('@solidjs/router', () => ({
@@ -10,7 +11,10 @@ vi.mock('@solidjs/router', () => ({
 
 vi.mock('../../src/services/auth-client.js', () => ({
   authClient: {
-    signIn: { social: (...args: any[]) => mockSignInSocial(...args) },
+    signIn: {
+      social: (...args: any[]) => mockSignInSocial(...args),
+      oauth2: (...args: any[]) => mockSignInOauth2(...args),
+    },
   },
 }));
 
@@ -20,6 +24,7 @@ import { getLastAuthMethod } from '../../src/services/last-auth-method';
 describe('SocialButtons', () => {
   beforeEach(() => {
     mockSignInSocial.mockClear();
+    mockSignInOauth2.mockClear();
     mockSearchParams = {};
     localStorage.clear();
   });
@@ -100,6 +105,51 @@ describe('SocialButtons', () => {
       callbackURL: '/upgrade?reason=requests',
       errorCallbackURL: '/login?redirect=%2Fupgrade%3Freason%3Drequests&error=oauth_failed',
     });
+  });
+
+  it('renders a generic OIDC button for an unknown enabled provider id', () => {
+    render(() => <SocialButtons enabledProviders={['oidc']} />);
+    expect(screen.getByText('Continue with OIDC')).toBeDefined();
+    expect(screen.queryByText('Continue with Google')).toBeNull();
+  });
+
+  it('renders both social and OIDC buttons when both are enabled', () => {
+    render(() => <SocialButtons enabledProviders={['google', 'oidc']} />);
+    expect(screen.getByText('Continue with Google')).toBeDefined();
+    expect(screen.getByText('Continue with OIDC')).toBeDefined();
+  });
+
+  it('calls signIn.oauth2 with the provider id on OIDC click', async () => {
+    render(() => <SocialButtons enabledProviders={['oidc']} />);
+    await fireEvent.click(screen.getByText('Continue with OIDC'));
+    expect(mockSignInOauth2).toHaveBeenCalledWith(
+      expect.objectContaining({ providerId: 'oidc' }),
+    );
+  });
+
+  it('persists the OIDC provider id as last auth method before redirecting', async () => {
+    render(() => <SocialButtons enabledProviders={['oidc']} />);
+    await fireEvent.click(screen.getByText('Continue with OIDC'));
+    expect(getLastAuthMethod()).toBe('oidc');
+  });
+
+  it('preserves safe redirect intent for OIDC auth', async () => {
+    mockSearchParams = { redirect: '/upgrade?reason=requests' };
+    render(() => <SocialButtons enabledProviders={['oidc']} />);
+    await fireEvent.click(screen.getByText('Continue with OIDC'));
+    expect(mockSignInOauth2).toHaveBeenCalledWith({
+      providerId: 'oidc',
+      callbackURL: '/upgrade?reason=requests',
+      errorCallbackURL: '/login?redirect=%2Fupgrade%3Freason%3Drequests&error=oauth_failed',
+    });
+  });
+
+  it('renders the Last used badge on the matching OIDC button', () => {
+    const { container } = render(() => <SocialButtons enabledProviders={['oidc']} lastUsed="oidc" />);
+    const badges = container.querySelectorAll('.auth-last-used');
+    expect(badges.length).toBe(1);
+    const oidcBtn = container.querySelector('.auth-social-btn--oidc')!;
+    expect(oidcBtn.querySelector('.auth-last-used')).not.toBeNull();
   });
 
   it('accepts a signup-specific callback override', async () => {
