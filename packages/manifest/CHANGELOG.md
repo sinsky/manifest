@@ -1,5 +1,27 @@
 # manifest
 
+## 6.23.4
+
+### Patch Changes
+
+- 483d6c1: Close object schemas in Anthropic structured output. Every `type: object` node in `output_config.format.schema` now gets `additionalProperties: false` (unless the author set it), on both the chat-completions → Anthropic translation and the native `/v1/messages` pass-through, so Anthropic no longer rejects requests with "For 'object' type, 'additionalProperties' must be explicitly set to false".
+- 8f4fd02: Fix Kiro agent loops. When a request ends on a tool result with no new user text, leave the current Kiro turn empty instead of synthesizing `continue` (or leaving the system prompt there). Kiro read that fabricated text as a fresh instruction and dropped the in-flight task, so tool-calling agents (opencode et al.) lost context immediately after the first tool call. The system prompt now rides the conversation's first user turn so it still reaches the model.
+
+## 6.23.3
+
+### Patch Changes
+
+- 5f02d11: Leave model-specific provider corrections to Autofix. Keep provider-level protocol strips (OpenAI-only fields, OpenRouter and Ollama dialect fields) so traffic does not regress when Autofix is off.
+- 07a962b: Fix Kiro tool calling. Forward OpenAI tool definitions as Kiro tool specifications, map assistant `tool_calls` and `tool` role messages into Kiro `toolUses`/`toolResults`, and return Kiro `toolUseEvent` frames as OpenAI `tool_calls` (with `finish_reason: tool_calls`) in both streaming and non-streaming responses.
+
+## 6.23.2
+
+### Patch Changes
+
+- 6b0bbc9: Fix DeepSeek thinking-mode 400s by replaying `reasoning_content` under the scoped session key and covering non-tool assistant turns in tool conversations.
+- 340628f: Give repeated tool call ids unique values when converting a Chat Completions request to Responses, so reused ids no longer trip a strict Responses provider's "Duplicate function_call_output for call_id".
+- 922fefd: Give repeated tool call ids unique values before forwarding a Responses history, so strict Responses providers stop rejecting resubmitted turns with "Duplicate function_call_output for call_id".
+
 ## 6.23.1
 
 ### Patch Changes
