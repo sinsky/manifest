@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 
 import { DEFAULT_INSTRUCTIONS } from './chatgpt-helpers';
 import { OpenAIMessage } from './proxy-types';
+import { deduplicateCallIds } from './responses-call-ids';
 import { chatToolName, chatTools, responsesToolNames, ResponsesToolNames } from './responses-tools';
 
 type JsonRecord = Record<string, unknown>;
@@ -224,6 +225,14 @@ export function toNativeResponsesRequest(
     request.input = toNativeResponsesInput(body.input);
   } else if (body.input !== undefined) {
     request.input = normalizeNativeResponsesInput(body.input);
+  }
+  // `previous_response_id` means the provider holds the earlier turns, so the
+  // ids in this request can pair with items we cannot see. Leave them alone.
+  if (
+    Array.isArray(request.input) &&
+    (typeof request.previous_response_id !== 'string' || !request.previous_response_id)
+  ) {
+    request.input = deduplicateCallIds(request.input);
   }
   if (
     opts?.defaultInstructions &&
