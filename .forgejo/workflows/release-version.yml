@@ -348,10 +348,10 @@ jobs:
               exit 0
             fi
             echo "Tag $TAG already exists; force-moving it to the re-pushed release branch (re_push=true)."
-            git tag -f "$TAG"
+            git tag -a -f "$TAG" -m "manifest v${VERSION}"
             git push origin "$TAG" --force
           else
-            git tag "$TAG"
+            git tag -a "$TAG" -m "manifest v${VERSION}"
             git push origin "$TAG"
           fi
 
@@ -364,9 +364,10 @@ jobs:
           IMAGE_NOTE="Docker image: \`${HOST}/${OWNER_LC}/manifest:${VERSION}\`"
 
           BODY="Sinsky release branch \`${BRANCH_NAME}\` (Forgejo). Base version: upstream [manifest@${BASE}](https://github.com/mnfst/manifest/releases/tag/manifest@${BASE}). Custom ref: \`${CUSTOM_REF}\` at \`${CUSTOM_SHA}\`. ${IMAGE_NOTE}. See the upstream release page for the full changelog."
-          PAYLOAD=$(TAG="$TAG" NAME="manifest v${VERSION}" BODY="$BODY" node -e '
+          PAYLOAD=$(TAG="$TAG" NAME="manifest v${VERSION}" BODY="$BODY" TARGET="$BRANCH_NAME" node -e '
             const p = {
               tag_name: process.env.TAG,
+              target_commitish: process.env.TARGET,
               name: process.env.NAME,
               body: process.env.BODY,
               draft: false,
