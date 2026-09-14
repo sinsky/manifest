@@ -96,7 +96,7 @@
 --z-toast: 8000
 --z-tooltip: 9999
 
-## Blocks (313 BEM blocks, 1694 classes)
+## Blocks (313 BEM blocks, 1695 classes)
 account-back-btn (agents.css): account-back-btn
 account-email-footer (agents.css): account-email-footer
 account-email-toggle (agents.css): account-email-toggle--disabled
@@ -130,7 +130,7 @@ auth-header (auth.css): auth-header auth-header__subtitle auth-header__title
 auth-last-used (auth.css): auth-last-used
 auth-layout (auth.css): auth-layout
 auth-logo (auth.css): auth-logo auth-logo__img auth-logo__img--dark auth-logo__img--light auth-logo__link
-auth-social-btn (auth.css): auth-social-btn auth-social-btn--discord auth-social-btn--github auth-social-btn--google auth-social-btn__icon
+auth-social-btn (auth.css): auth-social-btn auth-social-btn--discord auth-social-btn--github auth-social-btn--google auth-social-btn--oidc auth-social-btn__icon
 auth-social-group (auth.css): auth-social-group
 auth-terms (auth.css): auth-terms auth-terms__link
 autofix-card (data.css): autofix-card autofix-card--autofix autofix-card--fallback autofix-card__branding autofix-card__header autofix-card__ids autofix-card__op autofix-card__op-desc autofix-card__op-type autofix-card__ops autofix-card__phrase autofix-card__sibling-btn autofix-card__title
