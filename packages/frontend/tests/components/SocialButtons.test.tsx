@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@solidjs/testing-library';
 
 const mockSignInSocial = vi.fn();
-const mockSignInOauth2 = vi.fn();
 let mockSearchParams: Record<string, string> = {};
 
 vi.mock('@solidjs/router', () => ({
@@ -13,7 +12,6 @@ vi.mock('../../src/services/auth-client.js', () => ({
   authClient: {
     signIn: {
       social: (...args: any[]) => mockSignInSocial(...args),
-      oauth2: (...args: any[]) => mockSignInOauth2(...args),
     },
   },
 }));
@@ -24,7 +22,6 @@ import { getLastAuthMethod } from '../../src/services/last-auth-method';
 describe('SocialButtons', () => {
   beforeEach(() => {
     mockSignInSocial.mockClear();
-    mockSignInOauth2.mockClear();
     mockSearchParams = {};
     localStorage.clear();
   });
@@ -119,11 +116,11 @@ describe('SocialButtons', () => {
     expect(screen.getByText('Continue with OIDC')).toBeDefined();
   });
 
-  it('calls signIn.oauth2 with the provider id on OIDC click', async () => {
+  it('calls signIn.social with the provider id on OIDC click', async () => {
     render(() => <SocialButtons enabledProviders={['oidc']} />);
     await fireEvent.click(screen.getByText('Continue with OIDC'));
-    expect(mockSignInOauth2).toHaveBeenCalledWith(
-      expect.objectContaining({ providerId: 'oidc' }),
+    expect(mockSignInSocial).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'oidc' }),
     );
   });
 
@@ -137,8 +134,8 @@ describe('SocialButtons', () => {
     mockSearchParams = { redirect: '/upgrade?reason=requests' };
     render(() => <SocialButtons enabledProviders={['oidc']} />);
     await fireEvent.click(screen.getByText('Continue with OIDC'));
-    expect(mockSignInOauth2).toHaveBeenCalledWith({
-      providerId: 'oidc',
+    expect(mockSignInSocial).toHaveBeenCalledWith({
+      provider: 'oidc',
       callbackURL: '/upgrade?reason=requests',
       errorCallbackURL: '/login?redirect=%2Fupgrade%3Freason%3Drequests&error=oauth_failed',
     });

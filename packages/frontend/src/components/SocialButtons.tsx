@@ -31,8 +31,8 @@ const handleOidcLogin = (
   urls: { callbackURL: string; errorCallbackURL: string },
 ) => {
   setLastAuthMethod(providerId);
-  authClient.signIn.oauth2({
-    providerId,
+  authClient.signIn.social({
+    provider: providerId,
     callbackURL: urls.callbackURL,
     errorCallbackURL: urls.errorCallbackURL,
   });
@@ -99,9 +99,9 @@ const SocialButtons: Component<SocialButtonsProps> = (props) => {
   const enabled = () => props.enabledProviders ?? socialProviders.map((p) => p.id);
   const visibleSocial = () => socialProviders.filter((p) => enabled().includes(p.id));
   // Any enabled provider that isn't a known social id is a generic OIDC
-  // provider — the backend reports `OIDC_PROVIDER_ID` (default `oidc`) in
-  // `socialProviders`, and its login flow is started with `signIn.oauth2`
-  // rather than `signIn.social`.
+  // provider — the backend registers `OIDC_PROVIDER_ID` (default `oidc`) via
+  // the `genericOAuth` server plugin, and its login flow uses the standard
+  // `signIn.social` endpoint with the provider id.
   const oidcProviders = () => enabled().filter((id) => !isSocialProvider(id));
   const authUrls = () => ({
     ...buildSocialAuthUrls(searchParams),
