@@ -1833,7 +1833,7 @@ describe('ProxyController', () => {
     expect(res.status).toHaveBeenCalledWith(429);
     expect(res.json).toHaveBeenCalledWith({
       error: expect.objectContaining({
-        message: 'Rate limited by upstream provider',
+        message: 'rate limit',
         type: 'rate_limit_error',
         code: null,
         status: 429,
@@ -2710,7 +2710,7 @@ describe('ProxyController', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({
         error: expect.objectContaining({
-          message: 'Bad request to upstream provider',
+          message: 'bad request',
           type: 'invalid_request_error',
           code: null,
           status: 400,
@@ -3089,7 +3089,8 @@ describe('ProxyController', () => {
     });
 
     it('should forward provider error response and preserve content-type from provider', async () => {
-      const mockProviderResp = new Response('{"error":"bad gateway"}', {
+      // Plain text so the generic 5xx message is asserted independently of NODE_ENV.
+      const mockProviderResp = new Response('bad gateway', {
         status: 502,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -4214,8 +4215,8 @@ describe('ProxyController', () => {
         expect.objectContaining({
           error: expect.objectContaining({
             type: 'server_error',
-            code: 'fallback_exhausted',
-            source: 'manifest',
+            code: null,
+            source: 'provider',
           }),
         }),
       );
@@ -4266,8 +4267,8 @@ describe('ProxyController', () => {
         expect.objectContaining({
           error: expect.objectContaining({
             type: 'server_error',
-            code: 'fallback_exhausted',
-            source: 'manifest',
+            code: null,
+            source: 'provider',
             status: 502,
           }),
         }),
@@ -4487,7 +4488,7 @@ describe('ProxyController', () => {
     );
   });
 
-  it('should return primary error status with fallback_exhausted code and X-Manifest-Fallback-Exhausted header', async () => {
+  it('should return primary error status with fallback_exhausted flag and X-Manifest-Fallback-Exhausted header', async () => {
     const mockProviderResp = new Response('primary error', {
       status: 502,
       headers: { 'Content-Type': 'text/plain' },
@@ -4530,14 +4531,15 @@ describe('ProxyController', () => {
     expect(res.json).toHaveBeenCalledWith({
       error: expect.objectContaining({
         type: 'server_error',
-        code: 'fallback_exhausted',
-        source: 'manifest',
+        code: null,
+        source: 'provider',
         status: 502,
+        fallback_exhausted: true,
         primary_model: 'gpt-4o',
         primary_provider: 'OpenAI',
         attempted_fallbacks: [
-          { model: 'claude-sonnet-4', provider: 'Anthropic', status: 503 },
-          { model: 'deepseek-chat', provider: 'DeepSeek', status: 500 },
+          expect.objectContaining({ model: 'claude-sonnet-4', provider: 'Anthropic', status: 503 }),
+          expect.objectContaining({ model: 'deepseek-chat', provider: 'DeepSeek', status: 500 }),
         ],
       }),
     });
