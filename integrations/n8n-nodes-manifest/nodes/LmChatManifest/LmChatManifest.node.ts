@@ -25,7 +25,7 @@ interface ManifestChatModelOptions {
 }
 
 function manifestApiBaseUrl(credentials: { baseUrl?: unknown }): string {
-	const raw = String(credentials.baseUrl || 'https://app.manifest.build');
+	const raw = String(credentials.baseUrl || 'https://gateway.manifest.build');
 	return `${raw.replace(/\/+$/, '')}/v1`;
 }
 
@@ -50,7 +50,7 @@ export class LmChatManifest implements INodeType {
 			resources: {
 				primaryDocumentation: [
 					{
-						url: 'https://github.com/mnfst/manifest/tree/main/integrations/n8n-nodes-manifest',
+						url: 'https://github.com/mnfst/llm-gateway/tree/main/integrations/n8n-nodes-manifest',
 					},
 				],
 			},

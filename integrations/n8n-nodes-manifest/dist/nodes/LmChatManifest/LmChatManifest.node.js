@@ -37,7 +37,7 @@ exports.LmChatManifest = void 0;
 const n8n_workflow_1 = require("n8n-workflow");
 const attribution_1 = require("../shared/attribution");
 function manifestApiBaseUrl(credentials) {
-    const raw = String(credentials.baseUrl || 'https://app.manifest.build');
+    const raw = String(credentials.baseUrl || 'https://gateway.manifest.build');
     return `${raw.replace(/\/+$/, '')}/v1`;
 }
 class LmChatManifest {
@@ -62,7 +62,7 @@ class LmChatManifest {
                 resources: {
                     primaryDocumentation: [
                         {
-                            url: 'https://github.com/mnfst/manifest/tree/main/integrations/n8n-nodes-manifest',
+                            url: 'https://github.com/mnfst/llm-gateway/tree/main/integrations/n8n-nodes-manifest',
                         },
                     ],
                 },
