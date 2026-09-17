@@ -2,7 +2,7 @@
 
 Thanks for your interest in contributing to Manifest! This guide will help you get up and running.
 
-[![codecov](https://img.shields.io/codecov/c/github/mnfst/manifest?color=brightgreen)](https://codecov.io/gh/mnfst/manifest)
+[![codecov](https://img.shields.io/codecov/c/github/mnfst/llm-gateway?color=brightgreen)](https://codecov.io/gh/mnfst/llm-gateway)
 
 ## Tech Stack
 
@@ -14,7 +14,7 @@ Thanks for your interest in contributing to Manifest! This guide will help you g
 | Routing  | OpenAI-compatible proxy (`/v1/chat/completions`) |
 | Build    | Turborepo + npm workspaces                       |
 
-The full NestJS + SolidJS stack runs locally against PostgreSQL, and the same database backend is used in the [cloud version](https://gateway.manifest.build). For local development, the simplest option is to run PostgreSQL in Docker and point `DATABASE_URL` at it.
+The full NestJS + SolidJS stack runs locally against PostgreSQL, and the same database backend is used in the [cloud version](https://app.manifest.build). For local development, the simplest option is to run PostgreSQL in Docker and point `DATABASE_URL` at it.
 
 ## Prerequisites
 
@@ -47,8 +47,8 @@ Self-hosting is supported via the [Docker image](https://hub.docker.com/r/manife
 1. Fork and clone the repository:
 
 ```bash
-git clone https://github.com/<your-username>/manifest.git
-cd manifest
+git clone https://github.com/<your-username>/llm-gateway.git
+cd llm-gateway
 npm install
 ```
 
@@ -256,7 +256,7 @@ Write clear, concise commit messages that explain **why** the change was made. U
 
 ## Reporting Issues
 
-Found a bug or have a feature request? [Open an issue](https://github.com/mnfst/manifest/issues) with as much detail as possible.
+Found a bug or have a feature request? [Open an issue](https://github.com/mnfst/llm-gateway/issues) with as much detail as possible.
 
 ## Code of Conduct
 

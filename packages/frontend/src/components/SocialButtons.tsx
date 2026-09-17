@@ -1,5 +1,5 @@
 import { For, Show, type Component, type JSX } from 'solid-js';
-import { useSearchParams } from '@solidjs/router';
+import { useLocation, useSearchParams } from '@solidjs/router';
 import { authClient } from '../services/auth-client.js';
 import { buildSocialAuthUrls } from '../services/auth-redirects.js';
 import { setLastAuthMethod } from '../services/last-auth-method.js';
@@ -96,6 +96,7 @@ interface SocialButtonsProps {
 
 const SocialButtons: Component<SocialButtonsProps> = (props) => {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const enabled = () => props.enabledProviders ?? socialProviders.map((p) => p.id);
   const visibleSocial = () => socialProviders.filter((p) => enabled().includes(p.id));
   // Any enabled provider that isn't a known social id is a generic OIDC
@@ -104,7 +105,7 @@ const SocialButtons: Component<SocialButtonsProps> = (props) => {
   // `signIn.social` endpoint with the provider id.
   const oidcProviders = () => enabled().filter((id) => !isSocialProvider(id));
   const authUrls = () => ({
-    ...buildSocialAuthUrls(searchParams),
+    ...buildSocialAuthUrls(searchParams, location.search),
     ...(props.callbackURL ? { callbackURL: props.callbackURL } : {}),
   });
 

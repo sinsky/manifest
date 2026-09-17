@@ -2,11 +2,12 @@ import type { INestApplication } from '@nestjs/common';
 import { oauthProviderAuthServerMetadata } from '@better-auth/oauth-provider';
 import { fromNodeHeaders } from 'better-auth/node';
 import type { Request, Response } from 'express';
+import { mcpOAuthResponse } from '../auth/mcp-oauth-response';
 import {
   authInstance,
-  authIssuer,
-  authOrigin,
-  mcpResource,
+  authIssuerForHost,
+  authOriginForHost,
+  mcpResourceForHost,
   MCP_SCOPES,
 } from '../auth/auth.instance';
 
@@ -37,12 +38,14 @@ export function mountMcpDiscovery(app: INestApplication): void {
   const serveAuthMetadata = async (req: Request, res: Response): Promise<void> => {
     cors(res);
     try {
-      const response = await authServerMetadata(
-        new globalThis.Request(`${authOrigin}${req.originalUrl}`, {
+      const webRequest = new globalThis.Request(
+        `${authOriginForHost(req.headers.host)}${req.originalUrl}`,
+        {
           method: req.method,
           headers: fromNodeHeaders(req.headers),
-        }),
+        },
       );
+      const response = await mcpOAuthResponse(webRequest, await authServerMetadata(webRequest));
       response.headers.forEach((value, key) => res.set(key, value));
       res.status(response.status).send(req.method === 'HEAD' ? undefined : await response.text());
     } catch {
@@ -66,19 +69,18 @@ export function mountMcpDiscovery(app: INestApplication): void {
     res.status(404).json({ statusCode: 404, message: 'OAuth metadata unavailable' });
   });
 
-  const resourceMetadata = {
-    resource: mcpResource,
-    authorization_servers: [authIssuer],
-    bearer_methods_supported: ['header'],
-    scopes_supported: [...MCP_SCOPES],
-  };
   for (const path of [
     '/.well-known/oauth-protected-resource',
     '/.well-known/oauth-protected-resource/api/v1/mcp',
   ]) {
-    expressApp.get(path, (_req: Request, res: Response) => {
+    expressApp.get(path, (req: Request, res: Response) => {
       cors(res);
-      res.status(200).json(resourceMetadata);
+      res.status(200).json({
+        resource: mcpResourceForHost(req.headers.host),
+        authorization_servers: [authIssuerForHost(req.headers.host)],
+        bearer_methods_supported: ['header'],
+        scopes_supported: [...MCP_SCOPES],
+      });
     });
   }
 }
