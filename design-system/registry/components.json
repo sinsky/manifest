@@ -611,6 +611,7 @@
         "auth-form__notice",
         "auth-form__notice-link",
         "auth-form__submit",
+        "auth-form__submit--secondary",
         "auth-form__success"
       ],
       "files": [
@@ -662,6 +663,7 @@
         "auth-social-btn--discord",
         "auth-social-btn--github",
         "auth-social-btn--google",
+        "auth-social-btn--oidc",
         "auth-social-btn__icon"
       ],
       "files": [
@@ -5090,7 +5092,7 @@
     "tokens": 79,
     "darkOverrides": 38,
     "blocks": 314,
-    "classes": 1698,
+    "classes": 1699,
     "canonicalRules": 46,
     "ghostRules": 46
   }
