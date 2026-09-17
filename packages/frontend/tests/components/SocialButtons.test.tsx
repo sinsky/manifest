@@ -152,7 +152,7 @@ describe('SocialButtons', () => {
     expect(mockSignInSocial).toHaveBeenCalledWith({
       provider: 'oidc',
       callbackURL: '/upgrade?reason=requests',
-      errorCallbackURL: '/login?redirect=%2Fupgrade%3Freason%3Drequests&error=oauth_failed',
+      errorCallbackURL: '/login?redirect=%2Fupgrade%3Freason%3Drequests&oauth=failed',
     });
   });
 
