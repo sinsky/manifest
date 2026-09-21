@@ -143,16 +143,19 @@ jobs:
             exit 1
           fi
 
-          # A version-specific custom branch must not contain later upstream
-          # commits. Custom commits are allowed only when they are not already
-          # reachable from upstream/main.
-          git fetch upstream main --quiet
-          while IFS= read -r commit; do
-            if git merge-base --is-ancestor "$commit" upstream/main; then
-              echo "::error::Custom ref contains upstream commit $commit after $UPSTREAM_TAG."
-              exit 1
-            fi
-          done < <(git rev-list "$CUSTOM_SHA" --not "$BASE_SHA")
+           # Version-specific custom branches must not contain later upstream
+           # commits. custom/next intentionally tracks the latest upstream main
+           # and is released from the latest upstream tag plus its custom commits.
+           if [ "$INPUT_CUSTOM_REF" != "custom/next" ]; then
+             git fetch upstream main --quiet
+             while IFS= read -r commit; do
+               if git merge-base --is-ancestor "$commit" upstream/main; then
+                 echo "::error::Custom ref contains upstream commit $commit after $UPSTREAM_TAG."
+                 exit 1
+               fi
+             done < <(git rev-list "$CUSTOM_SHA" --not "$BASE_SHA")
+           fi
+
 
           echo "custom_sha=$CUSTOM_SHA" >> "$GITHUB_OUTPUT"
           echo "custom_ref=$INPUT_CUSTOM_REF" >> "$GITHUB_OUTPUT"
