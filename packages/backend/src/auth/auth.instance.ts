@@ -19,6 +19,7 @@ import {
   sendSubscriptionConfirmedEmail,
 } from '../billing/subscription-webhook-emails';
 import { fetchClientMetadataResource } from './cimd-client-metadata-fetch';
+import { authOriginFromEnv, mcpAvailability } from './mcp-availability';
 import { MCP_READ_SCOPE, MCP_WRITE_SCOPE, MCP_SCOPES } from './mcp-scopes';
 
 const port = process.env['PORT'] ?? '3001';
@@ -36,12 +37,18 @@ const hasEmailProvider = !!(
  * silently splits them — MCP clients validate the advertised `resource`
  * against the URL they connected to, so a divergence breaks connection.
  */
-export const authOrigin = (process.env['BETTER_AUTH_URL'] ?? `http://localhost:${port}`).replace(
-  /\/+$/,
-  '',
-);
+export const authOrigin = authOriginFromEnv();
 export const authIssuer = `${authOrigin}/api/auth`;
 export const mcpResource = `${authOrigin}/api/v1/mcp`;
+
+/**
+ * The remote MCP server only exists when its resource URL can be served. An
+ * install on plain HTTP behind a LAN or tailnet hostname runs without it
+ * rather than refusing to boot — see `mcp-availability.ts`.
+ */
+const mcpDecision = mcpAvailability();
+export const mcpEnabled = mcpDecision.enabled;
+export const mcpDisabledReason = mcpDecision.reason;
 export { MCP_READ_SCOPE, MCP_WRITE_SCOPE, MCP_SCOPES } from './mcp-scopes';
 
 const CLOUD_ORIGINS = ['https://app.manifest.build', 'https://gateway.manifest.build'];
@@ -205,43 +212,21 @@ function buildOidcProviderConfig(): GenericOAuthConfig | null {
 
 function buildPlugins() {
   // JWT access tokens are what the MCP resource route verifies: signature,
-  // issuer, audience, and expiry, all against the plugin's JWKS. The MCP plugin
-  // is the OAuth 2.1 authorization server behind the remote MCP endpoint, and
-  // CIMD gives modern MCP clients a verified identity document instead of
-  // anonymous dynamic registration. These are always on — unlike billing.
-  const base = [
-    ...(buildOidcProviderConfig() ? [genericOAuth({ config: [buildOidcProviderConfig()!] })] : []),
-    jwt(),
-    mcp({
-      loginPage: '/login',
-      consentPage: '/consent',
-      resource: mcpResource,
-      scopes: [...MCP_SCOPES, 'offline_access'],
-      resources: mcpResources.map((identifier) => ({
-        identifier,
-        name: 'Manifest MCP',
-        // Short-lived bearer tokens; the refresh token (offline_access) is
-        // how an editor stays connected across a session.
-        accessTokenTtl: 15 * 60,
-        allowedScopes: [...MCP_SCOPES, 'offline_access'],
-      })),
-      clientRegistrationDefaultResources: mcpResources,
-      resourceSeedMode: 'overwrite',
-      clientRegistrationDefaultScopes: [MCP_READ_SCOPE],
-      clientRegistrationAllowedScopes: [MCP_WRITE_SCOPE, 'offline_access'],
-      // DCR stays available to signed-in users, but anonymous registration is
-      // off: a client that can point a URL at a verified metadata document
-      // (CIMD) identifies itself, and everyone else must be added by an
-      // operator. This is the MCP 2026-07-28 posture.
-      allowDynamicClientRegistration: true,
-      allowUnauthenticatedClientRegistration: false,
-      clientRegistrationRequirePKCE: true,
-    }),
-    cimd({
-      fetchClientMetadataResource,
-      metadataProfile: 'mcp-2026-07-28',
-    }),
-  ];
+  // issuer, audience, and expiry, all against the plugin's JWKS. It stays on
+  // unconditionally — it is not MCP-specific.
+  //
+  // The MCP plugin is the OAuth 2.1 authorization server behind the remote MCP
+  // endpoint, and CIMD gives modern MCP clients a verified identity document
+  // instead of anonymous dynamic registration. Both are skipped when MCP is
+  // unavailable: `mcp()` validates its resource URL as it is constructed, so
+  // building it on an HTTP-only install throws here and takes down the whole
+  // process, and CIMD exists only to serve MCP clients.
+  //
+  // Custom: generic OIDC provider (env-driven) stays first when configured.
+  const oidcPlugins = buildOidcProviderConfig()
+    ? [genericOAuth({ config: [buildOidcProviderConfig()!] })]
+    : [];
+  const base = [...oidcPlugins, jwt(), ...(mcpEnabled ? buildMcpPlugins() : [])];
   if (!isBillingEnabled()) return base;
   const plans = [{ name: 'pro', priceId: process.env['STRIPE_PRO_PRICE_ID']! }];
   const priceToPlan = new Map(plans.map((plan) => [plan.priceId, plan.name]));
@@ -274,6 +259,40 @@ function buildPlugins() {
   ];
 }
 
+function buildMcpPlugins() {
+  return [
+    mcp({
+      loginPage: '/login',
+      consentPage: '/consent',
+      resource: mcpResource,
+      scopes: [...MCP_SCOPES, 'offline_access'],
+      resources: mcpResources.map((identifier) => ({
+        identifier,
+        name: 'Manifest MCP',
+        // Short-lived bearer tokens; the refresh token (offline_access) is
+        // how an editor stays connected across a session.
+        accessTokenTtl: 15 * 60,
+        allowedScopes: [...MCP_SCOPES, 'offline_access'],
+      })),
+      clientRegistrationDefaultResources: mcpResources,
+      resourceSeedMode: 'overwrite',
+      clientRegistrationDefaultScopes: [MCP_READ_SCOPE],
+      clientRegistrationAllowedScopes: [MCP_WRITE_SCOPE, 'offline_access'],
+      // DCR stays available to signed-in users, but anonymous registration is
+      // off: a client that can point a URL at a verified metadata document
+      // (CIMD) identifies itself, and everyone else must be added by an
+      // operator. This is the MCP 2026-07-28 posture.
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: false,
+      clientRegistrationRequirePKCE: true,
+    }),
+    cimd({
+      fetchClientMetadataResource,
+      metadataProfile: 'mcp-2026-07-28',
+    }),
+  ];
+}
+
 const pluginAuth = betterAuth({
   database,
   baseURL: authBaseURL,
@@ -282,6 +301,14 @@ const pluginAuth = betterAuth({
   logger: { level: 'debug' },
   telemetry: { enabled: false },
   plugins: buildPlugins(),
+  session: {
+    // Validate sessions from a signed cookie instead of the database. The two
+    // statements behind a lookup take 0.3 ms, but on the production path they
+    // cost ~0.5 s per call, paid by the browser's get-session probe and by
+    // every SessionGuard cache miss, before any page can load. A revoked
+    // session stays valid for at most maxAge; sign-out clears the cookie.
+    cookieCache: { enabled: true, maxAge: 5 * 60 },
+  },
   account: {
     accountLinking: {
       enabled: true,
