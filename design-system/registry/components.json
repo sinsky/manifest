@@ -687,6 +687,18 @@
         "auth.css"
       ]
     },
+    "autofix-banner": {
+      "classes": [
+        "autofix-banner",
+        "autofix-banner__btn",
+        "autofix-banner__close",
+        "autofix-banner__content",
+        "autofix-banner__text"
+      ],
+      "files": [
+        "autofix-banner.css"
+      ]
+    },
     "autofix-card": {
       "classes": [
         "autofix-card",
@@ -1097,6 +1109,7 @@
         "agents.css",
         "analytics-overview.css",
         "auth.css",
+        "autofix.css",
         "controls.css",
         "data.css",
         "modals.css",
@@ -1815,6 +1828,15 @@
       ],
       "files": [
         "syntax-highlight.css"
+      ]
+    },
+    "info-card": {
+      "classes": [
+        "info-card__content",
+        "info-card__text"
+      ],
+      "files": [
+        "cards.css"
       ]
     },
     "info-tooltip": {
@@ -3378,6 +3400,7 @@
         "settings-card--disabled",
         "settings-card--flush",
         "settings-card--highlight",
+        "settings-card--info",
         "settings-card__body",
         "settings-card__control",
         "settings-card__control--end",
@@ -3399,6 +3422,7 @@
       ],
       "files": [
         "agents.css",
+        "cards.css",
         "controls.css",
         "modals.css",
         "notifications.css"
@@ -3604,6 +3628,20 @@
       "files": [
         "controls.css",
         "theme.css"
+      ]
+    },
+    "sidebar-autofix": {
+      "classes": [
+        "sidebar-autofix",
+        "sidebar-autofix__benefit-item",
+        "sidebar-autofix__benefits",
+        "sidebar-autofix__btn",
+        "sidebar-autofix__dismiss",
+        "sidebar-autofix__header",
+        "sidebar-autofix__title"
+      ],
+      "files": [
+        "autofix.css"
       ]
     },
     "sidebar-pivot": {
@@ -4408,154 +4446,154 @@
       "prop": "box-shadow",
       "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px",
       "file": "theme.css",
-      "line": 197
+      "line": 199
     },
     {
       "selector": ".trend--up",
       "prop": "color",
       "value": "hsl(var(--success))",
       "file": "theme.css",
-      "line": 238
+      "line": 240
     },
     {
       "selector": ".trend--up",
       "prop": "background",
       "value": "hsl(var(--success) / 0.1)",
       "file": "theme.css",
-      "line": 239
+      "line": 241
     },
     {
       "selector": ".trend--down",
       "prop": "color",
       "value": "hsl(var(--destructive))",
       "file": "theme.css",
-      "line": 243
+      "line": 245
     },
     {
       "selector": ".trend--down",
       "prop": "background",
       "value": "hsl(var(--destructive) / 0.1)",
       "file": "theme.css",
-      "line": 244
+      "line": 246
     },
     {
       "selector": ".panel",
       "prop": "box-shadow",
       "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px",
       "file": "theme.css",
-      "line": 269
+      "line": 271
     },
     {
       "selector": ".chart-card",
       "prop": "box-shadow",
       "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px",
       "file": "theme.css",
-      "line": 285
+      "line": 287
     },
     {
       "selector": ".chart-card__header",
       "prop": "align-items",
       "value": "flex-end",
       "file": "theme.css",
-      "line": 291
+      "line": 293
     },
     {
       "selector": ".chart-card__value-row",
       "prop": "align-items",
       "value": "baseline",
       "file": "theme.css",
-      "line": 323
+      "line": 325
     },
     {
       "selector": ".feed-item",
       "prop": "align-items",
       "value": "center",
       "file": "theme.css",
-      "line": 587
+      "line": 589
     },
     {
       "selector": ".feed-item",
       "prop": "gap",
       "value": "var(--gap-md)",
       "file": "theme.css",
-      "line": 588
+      "line": 590
     },
     {
       "selector": ".feed-item",
       "prop": "padding",
       "value": "10px 0",
       "file": "theme.css",
-      "line": 589
+      "line": 591
     },
     {
       "selector": ".sidebar",
       "prop": "padding",
       "value": "var(--gap-lg) 0 0 0",
       "file": "theme.css",
-      "line": 785
+      "line": 787
     },
     {
       "selector": ".theme-toggle",
       "prop": "padding",
       "value": "6px 12px",
       "file": "theme.css",
-      "line": 943
+      "line": 945
     },
     {
       "selector": ".theme-toggle",
       "prop": "width",
       "value": "100%",
       "file": "theme.css",
-      "line": 952
+      "line": 954
     },
     {
       "selector": ".chart-tooltip",
       "prop": "font-size",
       "value": "var(--font-size-xs)",
       "file": "theme.css",
-      "line": 1029
+      "line": 1031
     },
     {
       "selector": ".expandable-card__fade",
       "prop": "height",
       "value": "64px",
       "file": "theme.css",
-      "line": 1060
+      "line": 1062
     },
     {
       "selector": ".expandable-card__fade",
       "prop": "background",
       "value": "linear-gradient(transparent, hsl(var(--card)) 70%)",
       "file": "theme.css",
-      "line": 1061
+      "line": 1063
     },
     {
       "selector": ".expandable-card__fade",
       "prop": "padding-bottom",
       "value": "12px",
       "file": "theme.css",
-      "line": 1066
+      "line": 1068
     },
     {
       "selector": ".modal",
       "prop": "box-shadow",
       "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px,\n    0 25px 50px -12px rgb(0 0 0 / 0.25)",
       "file": "theme.css",
-      "line": 1117
+      "line": 1119
     },
     {
       "selector": ".modal__close",
       "prop": "width",
       "value": "2rem",
       "file": "theme.css",
-      "line": 1142
+      "line": 1144
     },
     {
       "selector": ".modal__close",
       "prop": "height",
       "value": "2rem",
       "file": "theme.css",
-      "line": 1143
+      "line": 1145
     },
     {
       "selector": ".toast",
@@ -4635,7 +4673,7 @@
       "value": "var(--card-shadow)",
       "file": "cards.css",
       "line": 7,
-      "losesTo": "theme.css:197"
+      "losesTo": "theme.css:199"
     },
     {
       "selector": ".trend--up",
@@ -4643,7 +4681,7 @@
       "value": "hsl(var(--muted-foreground))",
       "file": "cards.css",
       "line": 48,
-      "losesTo": "theme.css:238"
+      "losesTo": "theme.css:240"
     },
     {
       "selector": ".trend--down",
@@ -4651,7 +4689,7 @@
       "value": "hsl(var(--muted-foreground))",
       "file": "cards.css",
       "line": 48,
-      "losesTo": "theme.css:243"
+      "losesTo": "theme.css:245"
     },
     {
       "selector": ".trend--up",
@@ -4659,7 +4697,7 @@
       "value": "hsl(var(--muted))",
       "file": "cards.css",
       "line": 49,
-      "losesTo": "theme.css:239"
+      "losesTo": "theme.css:241"
     },
     {
       "selector": ".trend--down",
@@ -4667,7 +4705,7 @@
       "value": "hsl(var(--muted))",
       "file": "cards.css",
       "line": 49,
-      "losesTo": "theme.css:244"
+      "losesTo": "theme.css:246"
     },
     {
       "selector": ".panel",
@@ -4675,7 +4713,7 @@
       "value": "var(--card-shadow)",
       "file": "cards.css",
       "line": 59,
-      "losesTo": "theme.css:269"
+      "losesTo": "theme.css:271"
     },
     {
       "selector": ".view-more-link",
@@ -4691,7 +4729,7 @@
       "value": "var(--card-shadow)",
       "file": "cards.css",
       "line": 86,
-      "losesTo": "theme.css:285"
+      "losesTo": "theme.css:287"
     },
     {
       "selector": ".chart-card__header",
@@ -4699,7 +4737,7 @@
       "value": "stretch",
       "file": "cards.css",
       "line": 92,
-      "losesTo": "theme.css:291"
+      "losesTo": "theme.css:293"
     },
     {
       "selector": ".chart-card__value-row",
@@ -4707,7 +4745,7 @@
       "value": "center",
       "file": "cards.css",
       "line": 160,
-      "losesTo": "theme.css:323"
+      "losesTo": "theme.css:325"
     },
     {
       "selector": ".chart-tooltip",
@@ -4715,7 +4753,7 @@
       "value": "var(--tooltip-font-size)",
       "file": "charts.css",
       "line": 78,
-      "losesTo": "theme.css:1029"
+      "losesTo": "theme.css:1031"
     },
     {
       "selector": ".expandable-card__fade",
@@ -4723,7 +4761,7 @@
       "value": "80px",
       "file": "charts.css",
       "line": 110,
-      "losesTo": "theme.css:1060"
+      "losesTo": "theme.css:1062"
     },
     {
       "selector": ".expandable-card__fade",
@@ -4731,7 +4769,7 @@
       "value": "linear-gradient(transparent, hsl(var(--card)) 60%)",
       "file": "charts.css",
       "line": 111,
-      "losesTo": "theme.css:1061"
+      "losesTo": "theme.css:1063"
     },
     {
       "selector": ".expandable-card__fade",
@@ -4739,7 +4777,7 @@
       "value": "16px",
       "file": "charts.css",
       "line": 116,
-      "losesTo": "theme.css:1066"
+      "losesTo": "theme.css:1068"
     },
     {
       "selector": ".toast",
@@ -4787,7 +4825,7 @@
       "value": "var(--gap-md) 0",
       "file": "controls.css",
       "line": 213,
-      "losesTo": "theme.css:785"
+      "losesTo": "theme.css:787"
     },
     {
       "selector": ".custom-select__option--top > svg",
@@ -4827,7 +4865,7 @@
       "value": "flex-start",
       "file": "data.css",
       "line": 507,
-      "losesTo": "theme.css:587"
+      "losesTo": "theme.css:589"
     },
     {
       "selector": ".feed-item",
@@ -4835,7 +4873,7 @@
       "value": "12px",
       "file": "data.css",
       "line": 508,
-      "losesTo": "theme.css:588"
+      "losesTo": "theme.css:590"
     },
     {
       "selector": ".feed-item",
@@ -4843,7 +4881,7 @@
       "value": "12px 0",
       "file": "data.css",
       "line": 509,
-      "losesTo": "theme.css:589"
+      "losesTo": "theme.css:591"
     },
     {
       "selector": ".theme-toggle",
@@ -4851,7 +4889,7 @@
       "value": "2rem",
       "file": "layout.css",
       "line": 141,
-      "losesTo": "theme.css:952"
+      "losesTo": "theme.css:954"
     },
     {
       "selector": ".theme-toggle",
@@ -4859,7 +4897,7 @@
       "value": "0",
       "file": "layout.css",
       "line": 149,
-      "losesTo": "theme.css:943"
+      "losesTo": "theme.css:945"
     },
     {
       "selector": ".modal",
@@ -4867,7 +4905,7 @@
       "value": "var(--card-shadow),\n    0 25px 50px -12px rgb(0 0 0 / 0.25)",
       "file": "modals.css",
       "line": 22,
-      "losesTo": "theme.css:1117"
+      "losesTo": "theme.css:1119"
     },
     {
       "selector": ".modal__close",
@@ -4875,7 +4913,7 @@
       "value": "32px",
       "file": "modals.css",
       "line": 47,
-      "losesTo": "theme.css:1142"
+      "losesTo": "theme.css:1144"
     },
     {
       "selector": ".modal__close",
@@ -4883,7 +4921,7 @@
       "value": "32px",
       "file": "modals.css",
       "line": 48,
-      "losesTo": "theme.css:1143"
+      "losesTo": "theme.css:1145"
     },
     {
       "selector": ".setup-modal__header",
@@ -5079,8 +5117,8 @@
   "stats": {
     "tokens": 79,
     "darkOverrides": 38,
-    "blocks": 314,
-    "classes": 1700,
+    "blocks": 316,
+    "classes": 1711,
     "canonicalRules": 46,
     "ghostRules": 46
   }
