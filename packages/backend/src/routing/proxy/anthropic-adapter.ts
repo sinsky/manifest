@@ -274,6 +274,33 @@ function convertTools(tools?: Array<Record<string, unknown>>): AnthropicTool[] |
 }
 
 /**
+ * chat_completions `tool_choice` + `parallel_tool_calls` → Anthropic
+ * `tool_choice`. Anthropic has no top-level parallel flag: it rides on the
+ * choice as `disable_parallel_tool_use`, which `none` does not take.
+ */
+function toAnthropicToolChoice(
+  choice: unknown,
+  parallelToolCalls: unknown,
+): Record<string, unknown> | undefined {
+  if (choice === 'none') return { type: 'none' };
+  let out: Record<string, unknown> | undefined;
+  if (choice === 'auto') out = { type: 'auto' };
+  else if (choice === 'required') out = { type: 'any' };
+  else if (
+    isObjectRecord(choice) &&
+    choice.type === 'function' &&
+    isObjectRecord(choice.function) &&
+    typeof choice.function.name === 'string'
+  ) {
+    out = { type: 'tool', name: choice.function.name };
+  }
+  if (parallelToolCalls === false) {
+    out = { ...(out ?? { type: 'auto' }), disable_parallel_tool_use: true };
+  }
+  return out;
+}
+
+/**
  * JSON Schema keywords whose value is a subschema, an array of subschemas, or a
  * map of subschemas. Only these recurse: `enum`/`default`/`examples`/`const` hold
  * data values that can look like schemas and must pass through untouched.
@@ -426,6 +453,8 @@ export function toAnthropicRequest(
   if (tools.length > 0) {
     tools[tools.length - 1].cache_control = CACHE;
     result.tools = tools;
+    const toolChoice = toAnthropicToolChoice(body.tool_choice, body.parallel_tool_calls);
+    if (toolChoice) result.tool_choice = toolChoice;
   }
 
   const outputConfig = toAnthropicOutputConfig(body.response_format, body.output_config);
@@ -511,8 +540,14 @@ export function applyAnthropicMessagesMutations(
   if (isObjectRecord(result.output_config)) {
     result.output_config = closeOutputConfigObjectSchemas(result.output_config);
   }
+  // Anthropic processes breakpoints in tools → system → messages order and
+  // rejects a one-hour breakpoint that follows a five-minute one. A caller that
+  // uses one-hour TTLs (Claude Code does, on system) has planned its own cache,
+  // so adding our default five-minute breakpoints would only produce a 400.
   const cacheBudget = {
-    remaining: Math.max(0, MAX_CACHE_CONTROL_BLOCKS - countCacheControlBlocks(body)),
+    remaining: hasOneHourCacheControl(body)
+      ? 0
+      : Math.max(0, MAX_CACHE_CONTROL_BLOCKS - countCacheControlBlocks(body)),
   };
 
   // Normalize `system` to a content-block array so cache_control + identity
