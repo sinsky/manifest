@@ -663,6 +663,7 @@
         "auth-social-btn--discord",
         "auth-social-btn--github",
         "auth-social-btn--google",
+        "auth-social-btn--oidc",
         "auth-social-btn__icon"
       ],
       "files": [
@@ -5073,7 +5074,7 @@
     "tokens": 79,
     "darkOverrides": 38,
     "blocks": 313,
-    "classes": 1689,
+    "classes": 1690,
     "canonicalRules": 46,
     "ghostRules": 46
   }
