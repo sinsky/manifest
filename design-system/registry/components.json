@@ -687,18 +687,6 @@
         "auth.css"
       ]
     },
-    "autofix-banner": {
-      "classes": [
-        "autofix-banner",
-        "autofix-banner__btn",
-        "autofix-banner__close",
-        "autofix-banner__content",
-        "autofix-banner__text"
-      ],
-      "files": [
-        "autofix-banner.css"
-      ]
-    },
     "autofix-card": {
       "classes": [
         "autofix-card",
@@ -1109,13 +1097,11 @@
         "agents.css",
         "analytics-overview.css",
         "auth.css",
-        "autofix.css",
         "controls.css",
         "data.css",
         "modals.css",
         "model-filter.css",
         "overview.css",
-        "pivot.css",
         "platform-icons.css",
         "request-drawer.css",
         "routing-deprecation.css",
@@ -3630,36 +3616,6 @@
         "theme.css"
       ]
     },
-    "sidebar-autofix": {
-      "classes": [
-        "sidebar-autofix",
-        "sidebar-autofix__benefit-item",
-        "sidebar-autofix__benefits",
-        "sidebar-autofix__btn",
-        "sidebar-autofix__dismiss",
-        "sidebar-autofix__header",
-        "sidebar-autofix__title"
-      ],
-      "files": [
-        "autofix.css"
-      ]
-    },
-    "sidebar-pivot": {
-      "classes": [
-        "sidebar-pivot",
-        "sidebar-pivot__bottom",
-        "sidebar-pivot__btn",
-        "sidebar-pivot__canvas",
-        "sidebar-pivot__desc",
-        "sidebar-pivot__dismiss",
-        "sidebar-pivot__header",
-        "sidebar-pivot__title",
-        "sidebar-pivot__top"
-      ],
-      "files": [
-        "pivot.css"
-      ]
-    },
     "sidebar-upgrade": {
       "classes": [
         "sidebar-upgrade"
@@ -4446,154 +4402,154 @@
       "prop": "box-shadow",
       "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px",
       "file": "theme.css",
-      "line": 199
+      "line": 196
     },
     {
       "selector": ".trend--up",
       "prop": "color",
       "value": "hsl(var(--success))",
       "file": "theme.css",
-      "line": 240
+      "line": 237
     },
     {
       "selector": ".trend--up",
       "prop": "background",
       "value": "hsl(var(--success) / 0.1)",
       "file": "theme.css",
-      "line": 241
+      "line": 238
     },
     {
       "selector": ".trend--down",
       "prop": "color",
       "value": "hsl(var(--destructive))",
       "file": "theme.css",
-      "line": 245
+      "line": 242
     },
     {
       "selector": ".trend--down",
       "prop": "background",
       "value": "hsl(var(--destructive) / 0.1)",
       "file": "theme.css",
-      "line": 246
+      "line": 243
     },
     {
       "selector": ".panel",
       "prop": "box-shadow",
       "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px",
       "file": "theme.css",
-      "line": 271
+      "line": 268
     },
     {
       "selector": ".chart-card",
       "prop": "box-shadow",
       "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px",
       "file": "theme.css",
-      "line": 287
+      "line": 284
     },
     {
       "selector": ".chart-card__header",
       "prop": "align-items",
       "value": "flex-end",
       "file": "theme.css",
-      "line": 293
+      "line": 290
     },
     {
       "selector": ".chart-card__value-row",
       "prop": "align-items",
       "value": "baseline",
       "file": "theme.css",
-      "line": 325
+      "line": 322
     },
     {
       "selector": ".feed-item",
       "prop": "align-items",
       "value": "center",
       "file": "theme.css",
-      "line": 589
+      "line": 586
     },
     {
       "selector": ".feed-item",
       "prop": "gap",
       "value": "var(--gap-md)",
       "file": "theme.css",
-      "line": 590
+      "line": 587
     },
     {
       "selector": ".feed-item",
       "prop": "padding",
       "value": "10px 0",
       "file": "theme.css",
-      "line": 591
+      "line": 588
     },
     {
       "selector": ".sidebar",
       "prop": "padding",
       "value": "var(--gap-lg) 0 0 0",
       "file": "theme.css",
-      "line": 787
+      "line": 784
     },
     {
       "selector": ".theme-toggle",
       "prop": "padding",
       "value": "6px 12px",
       "file": "theme.css",
-      "line": 945
+      "line": 942
     },
     {
       "selector": ".theme-toggle",
       "prop": "width",
       "value": "100%",
       "file": "theme.css",
-      "line": 954
+      "line": 951
     },
     {
       "selector": ".chart-tooltip",
       "prop": "font-size",
       "value": "var(--font-size-xs)",
       "file": "theme.css",
-      "line": 1031
+      "line": 1028
     },
     {
       "selector": ".expandable-card__fade",
       "prop": "height",
       "value": "64px",
       "file": "theme.css",
-      "line": 1062
+      "line": 1059
     },
     {
       "selector": ".expandable-card__fade",
       "prop": "background",
       "value": "linear-gradient(transparent, hsl(var(--card)) 70%)",
       "file": "theme.css",
-      "line": 1063
+      "line": 1060
     },
     {
       "selector": ".expandable-card__fade",
       "prop": "padding-bottom",
       "value": "12px",
       "file": "theme.css",
-      "line": 1068
+      "line": 1065
     },
     {
       "selector": ".modal",
       "prop": "box-shadow",
       "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px,\n    0 25px 50px -12px rgb(0 0 0 / 0.25)",
       "file": "theme.css",
-      "line": 1119
+      "line": 1116
     },
     {
       "selector": ".modal__close",
       "prop": "width",
       "value": "2rem",
       "file": "theme.css",
-      "line": 1144
+      "line": 1141
     },
     {
       "selector": ".modal__close",
       "prop": "height",
       "value": "2rem",
       "file": "theme.css",
-      "line": 1145
+      "line": 1142
     },
     {
       "selector": ".toast",
@@ -4673,7 +4629,7 @@
       "value": "var(--card-shadow)",
       "file": "cards.css",
       "line": 7,
-      "losesTo": "theme.css:199"
+      "losesTo": "theme.css:196"
     },
     {
       "selector": ".trend--up",
@@ -4681,7 +4637,7 @@
       "value": "hsl(var(--muted-foreground))",
       "file": "cards.css",
       "line": 48,
-      "losesTo": "theme.css:240"
+      "losesTo": "theme.css:237"
     },
     {
       "selector": ".trend--down",
@@ -4689,7 +4645,7 @@
       "value": "hsl(var(--muted-foreground))",
       "file": "cards.css",
       "line": 48,
-      "losesTo": "theme.css:245"
+      "losesTo": "theme.css:242"
     },
     {
       "selector": ".trend--up",
@@ -4697,7 +4653,7 @@
       "value": "hsl(var(--muted))",
       "file": "cards.css",
       "line": 49,
-      "losesTo": "theme.css:241"
+      "losesTo": "theme.css:238"
     },
     {
       "selector": ".trend--down",
@@ -4705,7 +4661,7 @@
       "value": "hsl(var(--muted))",
       "file": "cards.css",
       "line": 49,
-      "losesTo": "theme.css:246"
+      "losesTo": "theme.css:243"
     },
     {
       "selector": ".panel",
@@ -4713,7 +4669,7 @@
       "value": "var(--card-shadow)",
       "file": "cards.css",
       "line": 59,
-      "losesTo": "theme.css:271"
+      "losesTo": "theme.css:268"
     },
     {
       "selector": ".view-more-link",
@@ -4729,7 +4685,7 @@
       "value": "var(--card-shadow)",
       "file": "cards.css",
       "line": 86,
-      "losesTo": "theme.css:287"
+      "losesTo": "theme.css:284"
     },
     {
       "selector": ".chart-card__header",
@@ -4737,7 +4693,7 @@
       "value": "stretch",
       "file": "cards.css",
       "line": 92,
-      "losesTo": "theme.css:293"
+      "losesTo": "theme.css:290"
     },
     {
       "selector": ".chart-card__value-row",
@@ -4745,7 +4701,7 @@
       "value": "center",
       "file": "cards.css",
       "line": 160,
-      "losesTo": "theme.css:325"
+      "losesTo": "theme.css:322"
     },
     {
       "selector": ".chart-tooltip",
@@ -4753,7 +4709,7 @@
       "value": "var(--tooltip-font-size)",
       "file": "charts.css",
       "line": 78,
-      "losesTo": "theme.css:1031"
+      "losesTo": "theme.css:1028"
     },
     {
       "selector": ".expandable-card__fade",
@@ -4761,7 +4717,7 @@
       "value": "80px",
       "file": "charts.css",
       "line": 110,
-      "losesTo": "theme.css:1062"
+      "losesTo": "theme.css:1059"
     },
     {
       "selector": ".expandable-card__fade",
@@ -4769,7 +4725,7 @@
       "value": "linear-gradient(transparent, hsl(var(--card)) 60%)",
       "file": "charts.css",
       "line": 111,
-      "losesTo": "theme.css:1063"
+      "losesTo": "theme.css:1060"
     },
     {
       "selector": ".expandable-card__fade",
@@ -4777,7 +4733,7 @@
       "value": "16px",
       "file": "charts.css",
       "line": 116,
-      "losesTo": "theme.css:1068"
+      "losesTo": "theme.css:1065"
     },
     {
       "selector": ".toast",
@@ -4825,7 +4781,7 @@
       "value": "var(--gap-md) 0",
       "file": "controls.css",
       "line": 213,
-      "losesTo": "theme.css:787"
+      "losesTo": "theme.css:784"
     },
     {
       "selector": ".custom-select__option--top > svg",
@@ -4865,7 +4821,7 @@
       "value": "flex-start",
       "file": "data.css",
       "line": 507,
-      "losesTo": "theme.css:589"
+      "losesTo": "theme.css:586"
     },
     {
       "selector": ".feed-item",
@@ -4873,7 +4829,7 @@
       "value": "12px",
       "file": "data.css",
       "line": 508,
-      "losesTo": "theme.css:590"
+      "losesTo": "theme.css:587"
     },
     {
       "selector": ".feed-item",
@@ -4881,7 +4837,7 @@
       "value": "12px 0",
       "file": "data.css",
       "line": 509,
-      "losesTo": "theme.css:591"
+      "losesTo": "theme.css:588"
     },
     {
       "selector": ".theme-toggle",
@@ -4889,7 +4845,7 @@
       "value": "2rem",
       "file": "layout.css",
       "line": 141,
-      "losesTo": "theme.css:954"
+      "losesTo": "theme.css:951"
     },
     {
       "selector": ".theme-toggle",
@@ -4897,7 +4853,7 @@
       "value": "0",
       "file": "layout.css",
       "line": 149,
-      "losesTo": "theme.css:945"
+      "losesTo": "theme.css:942"
     },
     {
       "selector": ".modal",
@@ -4905,7 +4861,7 @@
       "value": "var(--card-shadow),\n    0 25px 50px -12px rgb(0 0 0 / 0.25)",
       "file": "modals.css",
       "line": 22,
-      "losesTo": "theme.css:1119"
+      "losesTo": "theme.css:1116"
     },
     {
       "selector": ".modal__close",
@@ -4913,7 +4869,7 @@
       "value": "32px",
       "file": "modals.css",
       "line": 47,
-      "losesTo": "theme.css:1144"
+      "losesTo": "theme.css:1141"
     },
     {
       "selector": ".modal__close",
@@ -4921,7 +4877,7 @@
       "value": "32px",
       "file": "modals.css",
       "line": 48,
-      "losesTo": "theme.css:1145"
+      "losesTo": "theme.css:1142"
     },
     {
       "selector": ".setup-modal__header",
@@ -5117,8 +5073,8 @@
   "stats": {
     "tokens": 79,
     "darkOverrides": 38,
-    "blocks": 316,
-    "classes": 1711,
+    "blocks": 313,
+    "classes": 1690,
     "canonicalRules": 46,
     "ghostRules": 46
   }

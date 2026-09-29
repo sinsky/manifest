@@ -2015,6 +2015,7 @@ describe('ModelDiscoveryService', () => {
         'claude-haiku-4',
         'claude-opus-4',
         'claude-opus-5',
+        'claude-opus-5-5',
         'claude-sonnet-4',
         'claude-sonnet-5',
       ]);
@@ -2136,6 +2137,27 @@ describe('ModelDiscoveryService', () => {
         'sk-cp-global-token',
         'subscription',
         undefined,
+      );
+    });
+
+    it('routes MiniMax CN API-key discovery to the CN OpenAI endpoint', async () => {
+      mockDecrypt.mockReturnValue('sk-minimax-api-key');
+      fetcher.fetch.mockResolvedValue([]);
+
+      await service.discoverModels(
+        makeProvider({
+          provider: 'minimax',
+          auth_type: 'api_key',
+          api_key_encrypted: 'encrypted',
+          region: 'cn',
+        }),
+      );
+
+      expect(fetcher.fetch).toHaveBeenCalledWith(
+        'minimax',
+        'sk-minimax-api-key',
+        'api_key',
+        'https://api.minimaxi.com/v1',
       );
     });
 
@@ -2378,13 +2400,14 @@ describe('ModelDiscoveryService', () => {
       );
 
       // Subscription membership comes only from the curated knownModels list.
-      expect(result).toHaveLength(7);
+      expect(result).toHaveLength(8);
       expect(result.map((m) => m.id).sort()).toEqual([
         'claude-fable-5',
         'claude-fable-5-1',
         'claude-haiku-4',
         'claude-opus-4',
         'claude-opus-5',
+        'claude-opus-5-5',
         'claude-sonnet-4',
         'claude-sonnet-5',
       ]);
@@ -2580,13 +2603,14 @@ describe('ModelDiscoveryService', () => {
       );
 
       // Even without pricingSync, knownModels are returned directly
-      expect(result).toHaveLength(7);
+      expect(result).toHaveLength(8);
       expect(result.map((m) => m.id).sort()).toEqual([
         'claude-fable-5',
         'claude-fable-5-1',
         'claude-haiku-4',
         'claude-opus-4',
         'claude-opus-5',
+        'claude-opus-5-5',
         'claude-sonnet-4',
         'claude-sonnet-5',
       ]);

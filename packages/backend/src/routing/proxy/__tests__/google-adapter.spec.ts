@@ -40,6 +40,22 @@ describe('Google Adapter', () => {
       expect(result.contents).toEqual([{ role: 'user', parts: [{ text: 'Hi' }] }]);
     });
 
+    it('extracts developer messages into the system instruction', () => {
+      const body = {
+        messages: [
+          { role: 'system', content: 'You are helpful.' },
+          { role: 'developer', content: 'Answer in French.' },
+          { role: 'user', content: 'Hi' },
+        ],
+      };
+      const result = toGoogleRequest(body, 'gemini-2.0-flash');
+
+      expect(result.systemInstruction).toEqual({
+        parts: [{ text: 'You are helpful.\nAnswer in French.' }],
+      });
+      expect(result.contents).toEqual([{ role: 'user', parts: [{ text: 'Hi' }] }]);
+    });
+
     it('maps assistant role to model', () => {
       const body = {
         messages: [
@@ -907,6 +923,27 @@ describe('Google Adapter', () => {
 
       // Non-string system content is filtered out (only string content makes it)
       expect(result.systemInstruction).toBeUndefined();
+    });
+
+    it('extracts system instruction from content-part arrays', () => {
+      const body = {
+        messages: [
+          {
+            role: 'system',
+            content: [
+              { type: 'text', text: 'You are helpful.' },
+              { type: 'input_text', text: 'Be concise.' },
+            ],
+          },
+          { role: 'user', content: 'Hi' },
+        ],
+      };
+      const result = toGoogleRequest(body, 'gemini-2.0-flash');
+
+      expect(result.systemInstruction).toEqual({
+        parts: [{ text: 'You are helpful.\nBe concise.' }],
+      });
+      expect(result.contents).toEqual([{ role: 'user', parts: [{ text: 'Hi' }] }]);
     });
 
     it('joins multiple system messages into one instruction', () => {

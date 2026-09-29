@@ -1,5 +1,36 @@
 # manifest
 
+## 6.27.0
+
+### Minor Changes
+
+- 9c773fc: Custom providers take several API keys, each a separate connection managed like a native provider's keys.
+
+### Patch Changes
+
+- 60e0365: Forward `tool_choice` and `parallel_tool_calls` to Anthropic when translating Chat Completions or Responses requests. They were dropped, so a forced or disabled tool call was left to the model's own choice.
+- be73101: Route Bedrock GPT-6 models (and later numbered GPT families) through the namespaced OpenAI Responses API path, which Bedrock requires for them.
+- ac51ed8: Keep system prompts sent as content-part arrays when routing to Google Gemini. They were dropped from `systemInstruction`, so Gemini answered without the system prompt (including Responses API `developer` instructions).
+- cbb96fa: Send `developer` messages to Gemini as the system instruction instead of a user turn.
+- 74d8d04: Report a truncated or filtered non-streaming Responses API reply as `finish_reason: "length"` / `"content_filter"` instead of `"stop"`, matching the streaming path.
+- 20208e5: Keep cached-input and reasoning token counts on `/v1/responses` replies served by OpenAI-compatible Chat Completions upstreams, so clients see them and Manifest records and prices cache reads correctly.
+
+## 6.26.1
+
+### Patch Changes
+
+- ce10922: Stop adding five-minute cache breakpoints to Anthropic Messages requests that already use one-hour breakpoints (Claude Code), which Anthropic rejected with a 400, and explain in the Claude Code setup card how to get a 1M context window through the gateway.
+- 9b0a662: Fix a 500 on Chat Completions requests when Autofix heals an OpenAI subscription (Codex) call by switching the model.
+- 6173ff2: Bound routing momentum memory by session count and session-key length.
+- d228930: Bump `CODEX_CLI_VERSION` from `0.154.0` to `0.156.1` to track the current Codex CLI release, so OpenAI subscription model discovery can list the newest Codex models (e.g. `gpt-6-sol`, `gpt-6-luna`). Older `client_version` values receive an older model subset.
+- aa6734c: Make the gateway's per-tenant (M201) and per-IP (M202) rate caps configurable with `MANIFEST_RATE_MAX_REQUESTS` and `MANIFEST_IP_RATE_MAX_REQUESTS`, alongside the in-flight (M203) cap already set by `MANIFEST_CONCURRENCY_MAX`.
+- bf9702c: Editing a custom provider: "Fetch models" now reuses the saved API key when you don't retype it. The saved key is only sent to the provider's own base URL.
+- 64918e7: Make the per-harness enabled-providers endpoints resolve the active harness when a deleted harness had the same name, so reading, enabling, and disabling providers no longer act on the deleted one.
+- 813e058: Show a loading state while a routing fallback reorder is saving, and block further drags on that tier until it lands
+- e458112: Stop the Limits page from flashing the cloud email card on self-hosted installs, and keep the remove-provider confirmation honest when the refresh that follows a successful delete fails.
+- fca2948: Keep Pro while Stripe retries a failed renewal, so the dashboard offers Manage billing instead of a second checkout.
+- 8b4d9d4: Stop showing the "You've used all 10,000 requests" notice on the Upgrade page to Pro users who arrive from an old request-limit link.
+
 ## 6.26.0
 
 ### Minor Changes
