@@ -1,6 +1,8 @@
 import { betterAuth } from 'better-auth';
 import type { Auth } from 'better-auth';
 import { jwt } from 'better-auth/plugins';
+import { genericOAuth } from 'better-auth/plugins/generic-oauth';
+import type { GenericOAuthConfig } from 'better-auth/plugins/generic-oauth';
 import { cimd } from '@better-auth/cimd';
 import { mcp } from '@better-auth/mcp';
 import { stripe as stripePlugin } from '@better-auth/stripe';
@@ -172,6 +174,42 @@ function buildTrustedOrigins(): string[] {
   return origins;
 }
 
+function buildOidcProviderConfig(): GenericOAuthConfig | null {
+  const clientId = process.env['OIDC_CLIENT_ID'];
+  const clientSecret = process.env['OIDC_CLIENT_SECRET'];
+  if (!clientId || !clientSecret) return null;
+  const providerId = process.env['OIDC_PROVIDER_ID'] ?? 'oidc';
+  const issuer = process.env['OIDC_ISSUER'];
+  const discoveryUrl = process.env['OIDC_DISCOVERY_URL'];
+  const authorizationUrl = process.env['OIDC_AUTHORIZATION_URL'];
+  const tokenUrl = process.env['OIDC_TOKEN_URL'];
+  const userInfoUrl = process.env['OIDC_USERINFO_URL'];
+  if (!issuer && !discoveryUrl && !authorizationUrl && !tokenUrl) return null;
+  const scopes = process.env['OIDC_SCOPES']
+    ?.split(',')
+    .map((scope) => scope.trim())
+    .filter(Boolean) ?? ['openid', 'profile', 'email'];
+  const config: GenericOAuthConfig = {
+    providerId,
+    clientId,
+    clientSecret,
+    scopes,
+    pkce: process.env['OIDC_PKCE'] !== 'false',
+    disableSignUp: process.env['OIDC_DISABLE_SIGN_UP'] === 'true',
+    overrideUserInfo: process.env['OIDC_OVERRIDE_USER_INFO'] === 'true',
+  };
+  if (discoveryUrl) {
+    config.discoveryUrl = discoveryUrl;
+  } else if (issuer) {
+    const normalizedIssuer = issuer.endsWith('/') ? issuer.slice(0, -1) : issuer;
+    config.discoveryUrl = `${normalizedIssuer}/.well-known/openid-configuration`;
+  }
+  if (authorizationUrl) config.authorizationUrl = authorizationUrl;
+  if (tokenUrl) config.tokenUrl = tokenUrl;
+  if (userInfoUrl) config.userInfoUrl = userInfoUrl;
+  return config;
+}
+
 function buildPlugins() {
   // JWT access tokens are what the MCP resource route verifies: signature,
   // issuer, audience, and expiry, all against the plugin's JWKS. It stays on
@@ -183,7 +221,12 @@ function buildPlugins() {
   // unavailable: `mcp()` validates its resource URL as it is constructed, so
   // building it on an HTTP-only install throws here and takes down the whole
   // process, and CIMD exists only to serve MCP clients.
-  const base = [jwt(), ...(mcpEnabled ? buildMcpPlugins() : [])];
+  //
+  // Custom: generic OIDC provider (env-driven) stays first when configured.
+  const oidcPlugins = buildOidcProviderConfig()
+    ? [genericOAuth({ config: [buildOidcProviderConfig()!] })]
+    : [];
+  const base = [...oidcPlugins, jwt(), ...(mcpEnabled ? buildMcpPlugins() : [])];
   if (!isBillingEnabled()) return base;
   const plans = [{ name: 'pro', priceId: process.env['STRIPE_PRO_PRICE_ID']! }];
   const priceToPlan = new Map(plans.map((plan) => [plan.priceId, plan.name]));
