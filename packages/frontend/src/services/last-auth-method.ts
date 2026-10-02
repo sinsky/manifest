@@ -1,7 +1,7 @@
-export type AuthMethod = 'email' | 'google' | 'github' | 'discord';
+export type AuthMethod = 'email' | 'google' | 'github' | 'discord' | 'oidc';
 
 const STORAGE_KEY = 'manifest:last-auth-method';
-const VALID: ReadonlySet<AuthMethod> = new Set(['email', 'google', 'github', 'discord']);
+const VALID: ReadonlySet<AuthMethod> = new Set(['email', 'google', 'github', 'discord', 'oidc']);
 
 export const getLastAuthMethod = (): AuthMethod | null => {
   try {
@@ -12,7 +12,7 @@ export const getLastAuthMethod = (): AuthMethod | null => {
   }
 };
 
-export const setLastAuthMethod = (method: AuthMethod): void => {
+export const setLastAuthMethod = (method: AuthMethod | string): void => {
   try {
     localStorage.setItem(STORAGE_KEY, method);
   } catch {
