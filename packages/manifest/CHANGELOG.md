@@ -1,5 +1,34 @@
 # manifest
 
+## 6.28.6
+
+### Patch Changes
+
+- 16a5203: List Claude Haiku 5.5 (`claude-haiku-5-5`) in the Claude subscription catalog and serve its Bedrock cross-region inference profiles (`us.anthropic.claude-haiku-5-5`, …) through the Runtime Messages endpoint, so it can be picked for routing on both providers.
+- 2d585ca: Stream Gemini API replies through `:streamGenerateContent`. Streaming requests used `:generateContent?alt=sse`, which Gemini answers with a single event once the whole reply is generated, so clients got no output until the end.
+- bea98ee: Keep Gemini streams consistent across events: one completion id, distinct tool-call indices, a `tool_calls` finish reason when a tool call came in an earlier event, and a single finish and usage chunk at the end of the stream even though Gemini repeats usage on every event. A Gemini stream that ends before its finish still records its last usage.
+- fc4464a: Recorded conversations now keep tool calls on array-content messages and in Gemini streams, read multi-line SSE events, and show Gemini function declarations as named tools.
+- 3c0c22f: Stop the daily usage rollup from re-scanning requests whose harness was deleted on every run.
+- 394602c: List Claude Sonnet 5.5 (`claude-sonnet-5-5`) in the Claude subscription catalog and the GPT-6 models (`gpt-6-astra`, `gpt-6.1-sol`, `gpt-6-sol`, `gpt-6-luna`) in the ChatGPT subscription catalog, so both can be picked for routing even when live discovery does not return them.
+
+## 6.28.5
+
+### Patch Changes
+
+- 7d49332: Forward `max_completion_tokens` and `stop` to Gemini as `maxOutputTokens` and `stopSequences` on Google routes. Both were dropped, so the output cap and stop sequences sent by OpenAI SDK clients (and `stop_sequences` on `/v1/messages`) were ignored.
+
+## 6.28.4
+
+### Patch Changes
+
+- 92f4a58: List the Claude cross-Region inference profiles that Bedrock Runtime serves (such as `us.anthropic.claude-sonnet-5-5`) in Amazon Bedrock model discovery, so they can be picked for routing.
+
+## 6.28.3
+
+### Patch Changes
+
+- 158e0cd: Forward `tool_choice` and `parallel_tool_calls` when a Chat Completions or Anthropic Messages request is sent to a Responses endpoint (ChatGPT subscription, Responses-only OpenAI models, Copilot and xAI Responses). Both were dropped, so a forced or disabled tool call and a request for one tool call at a time reached the model as the defaults.
+
 ## 6.28.2
 
 ### Patch Changes
