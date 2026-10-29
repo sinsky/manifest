@@ -7,7 +7,8 @@
 # pinned by digest.
 
 # Stage 1: Install all dependencies (including dev deps) for the build.
-FROM node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS deps
+# Runs on the builder native platform to avoid running Node/esbuild under QEMU emulation.
+FROM --platform=$BUILDPLATFORM node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS deps
 WORKDIR /app
 COPY package.json package-lock.json turbo.json ./
 COPY packages/shared/package.json packages/shared/
@@ -17,7 +18,7 @@ RUN --mount=type=cache,target=/root/.npm \
     npm ci --prefer-offline --no-audit --no-fund --loglevel=error
 
 # Stage 2: Build the frontend + backend + shared bundles.
-FROM deps AS build
+FROM --platform=$BUILDPLATFORM deps AS build
 COPY packages/shared packages/shared
 COPY packages/frontend packages/frontend
 COPY packages/backend packages/backend
@@ -34,7 +35,7 @@ RUN npx turbo build --filter=manifest-backend --filter=manifest-frontend --filte
 # optionalDependencies; without it, npm hoists @esbuild/linux-x64 (a Go
 # binary) into node_modules even though `--omit=dev` strips its parent,
 # and CVE scanners then flag the embedded Go stdlib.
-FROM node:24-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS prod-deps
+FROM --platform=$BUILDPLATFORM node:24-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS prod-deps
 WORKDIR /app
 RUN mkdir -p /app/request-recordings
 COPY package.json package-lock.json ./

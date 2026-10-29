@@ -22,6 +22,8 @@ vi.mock("@better-auth/stripe/client", () => ({
   stripeClient: stripeClientMock,
 }));
 
+
+
 describe("authClient", () => {
   beforeEach(() => {
     // Each test re-imports the module to re-trigger the top-level
@@ -77,7 +79,8 @@ describe("authClient", () => {
 
     // ...and the returned plugin must be passed into `createAuthClient`'s
     // `plugins` array, which is what widens the client type with the
-    // `subscription` namespace in production.
+    // `subscription` namespace in production. Generic OIDC needs no client
+    // plugin — the server `genericOAuth` plugin exposes it via `signIn.social`.
     const config = createAuthClientMock.mock.calls[0][0] as {
       plugins: unknown[];
     };

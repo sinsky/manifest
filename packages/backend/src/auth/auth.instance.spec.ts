@@ -14,6 +14,9 @@ jest.mock('@better-auth/stripe', () => ({ stripe: mockStripePlugin }));
 jest.mock('better-auth/plugins', () => ({
   jwt: jest.fn().mockReturnValue({ id: 'jwt' }),
 }));
+jest.mock('better-auth/plugins/generic-oauth', () => ({
+  genericOAuth: jest.fn().mockReturnValue({ id: 'generic-oauth' }),
+}));
 jest.mock('@better-auth/mcp', () => ({
   mcp: jest.fn().mockReturnValue({ id: 'mcp' }),
 }));
@@ -258,6 +261,29 @@ describe('auth.instance', () => {
 
       const config = mockBetterAuth.mock.calls[0][0];
       expect(config.socialProviders.discord.enabled).toBe(false);
+    });
+  });
+
+  describe('generic OIDC provider', () => {
+    it('registers the genericOAuth plugin when OIDC env vars are set', () => {
+      process.env['OIDC_CLIENT_ID'] = 'oidc-id';
+      process.env['OIDC_CLIENT_SECRET'] = 'oidc-secret';
+      process.env['OIDC_ISSUER'] = 'https://idp.example.com';
+      loadModule();
+
+      const config = mockBetterAuth.mock.calls[0][0];
+      const pluginIds = (config.plugins as { id: string }[]).map((p) => p.id);
+      expect(pluginIds).toContain('generic-oauth');
+    });
+
+    it('skips the genericOAuth plugin when OIDC env vars are missing', () => {
+      delete process.env['OIDC_CLIENT_ID'];
+      delete process.env['OIDC_CLIENT_SECRET'];
+      loadModule();
+
+      const config = mockBetterAuth.mock.calls[0][0];
+      const pluginIds = (config.plugins as { id: string }[]).map((p) => p.id);
+      expect(pluginIds).not.toContain('generic-oauth');
     });
   });
 
