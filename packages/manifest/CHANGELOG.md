@@ -1,5 +1,39 @@
 # manifest
 
+## 6.28.10
+
+### Patch Changes
+
+- 3243da5: Tell Cloud workspaces on the Free plan that it ends on November 2, 2026: a dismissable banner at the top of the dashboard with a link to the announcement, and a note on the Free card of the plan picker and on the Account page. Pro workspaces and self-hosted installs see nothing.
+- 2a6d84b: Bump the Docker base images to Node.js 24.22.1 to pick up the October 2026 Node.js security releases (including CVE-2026-111497, CVE-2026-106069 and CVE-2026-105483). All installs should update.
+- 01e0e2a: The dashboard's Recent Requests and Model usage panels now start loading with the rest of the page instead of after it. Recent Requests updates live as new requests arrive, and Model usage refreshes every 30 seconds like the other usage figures. Before, both stayed stale until the range changed or the page was reloaded.
+- 1c75318: Stop storing Google load-balancer headers (`Forwarded`, `Via`, trace context) in recorded request headers. `Forwarded` carries the caller's IP.
+- c19d7b6: Read tool messages whose `content` is an array of text parts on Gemini and Anthropic routes. Gemini received them as plain user text with no `functionResponse`, so the model's function call went unanswered, and Anthropic received the JSON of the parts array as the tool result instead of its text.
+
+## 6.28.9
+
+### Patch Changes
+
+- 45d82cf: Add a "Custom development" button at the bottom of the dashboard sidebar. It opens a contact form for custom guardrails, hooks, integrations, governance, user management and installation by the Manifest team. The backend relays the form to manifest.build, which emails the team.
+
+## 6.28.8
+
+### Patch Changes
+
+- edabb1d: Remove the API Bot announcement banner and the API Bot sidebar card from the dashboard.
+
+## 6.28.7
+
+### Patch Changes
+
+- 52a921c: Surface Claude thinking text as `reasoning_content` when an Anthropic Messages reply is translated to a Chat Completions reply, both streaming and non-streaming.
+- f93cde5: Report Anthropic `refusal` stops as `content_filter` and `model_context_window_exceeded` stops as `length` on chat completions routes. Both were reported as `stop`, so a refused or truncated Claude reply looked like a finished turn.
+- b3f1251: Fix Chat Completions requests with function tools to Amazon Bedrock GPT cross-Region inference profiles (such as `us.openai.gpt-6-luna`). Bedrock Runtime defaults these models to reasoning and rejects that next to function tools, so a request with tools and no `reasoning_effort` now sends `none`, the OpenAI default. A `reasoning_effort` the caller sets is now forwarded instead of dropped.
+- 78780f9: Speed up harness-scoped request logs by reusing the resolved harness ID when querying unlinked legacy attempts.
+- ca55315: Send provider-required request headers from the Playground. Runs against OpenCode Go and OpenCode Zen now carry `x-opencode-session`, so the provider no longer rejects them with `MissingSessionID`. Headers set in the request editor still take precedence.
+- 352618a: Keep token-limited and refused replies visible on `/v1/responses` when the upstream speaks Chat Completions. A `length` or `content_filter` finish now yields `status: "incomplete"` (streams end with `response.incomplete`), and `message.refusal` / `delta.refusal` become `refusal` content parts instead of an empty completed response. Non-stream requests answered by a native Responses upstream over SSE now keep the `response.incomplete` and `response.failed` snapshots instead of reporting them as completed.
+- df977e5: Reuse resolved harness IDs across analytics queries and keep cached request filters isolated when harness names are reused.
+
 ## 6.28.6
 
 ### Patch Changes
